@@ -1,0 +1,51 @@
+circle {
+  fill: gray;
+  stroke: black;
+  stroke-width: 1;
+}
+
+rect {
+  fill: gray;
+  stroke: black;
+  stroke-width: 1;
+}
+
+ellipse {
+  fill: gray;
+  stroke: black;
+  stroke-width: 1;
+}
+
+.labels text {
+  pointer-events: none;
+  font-size: 10px;
+  fill: black;
+}
+
+.LMI_Account {
+  fill: red;
+}
+
+.CIM_Process {
+  fill: blue;
+}
+
+.CIM_DataFile {
+  fill: lightgreen;
+}
+
+.CIM_Directory {
+  fill: darkgreen;
+}
+
+.Linux.cgroup {
+  fill: purple;
+}
+
+.CIM_ComputerSystem {
+  fill: yellow;
+}
+
+.python {
+  fill: orange;
+}

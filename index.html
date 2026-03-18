@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="styles.css">
+  <style id="dynamic-style"></style>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="node_modules/rdflib/dist/rdflib.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid #ccc;
+      background: #fafafa;
+      z-index: 1;
+    }
+
+    #main {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    #graph {
+      flex: 1;
+      border: 1px solid black;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #urls {
+      width: 220px;
+      border-left: 1px solid black;
+      overflow-y: auto;
+      background: white;
+      transition: width 0.2s ease;
+    }
+
+    #urls.collapsed {
+      width: 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    #tooltip {
+      position: absolute;
+      display: none;
+      background: white;
+      border: 1px solid black;
+      padding: 5px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <h1 style="margin: 0;">RDF Viewer</h1>
+    <input type="file" id="fileInput" accept=".ttl,.rdf,.nt,.jsonld,.txt,.xml">
+    <button id="loadBtn">Load RDF File</button>
+    <button id="loadTopBtn" title="Load server top RDF" style="min-width: 120px;">host</button>
+    <button id="loadProcessesBtn">processes</button>
+
+    <div id="linkDistanceControl" style="display: flex; align-items: center; gap: 4px;">
+      <label for="linkDistanceRange" style="margin: 0; font-size: 0.9rem;">Node spacing</label>
+      <input id="linkDistanceRange" type="range" min="20" max="500" value="80" step="1" style="width: 140px;">
+      <span id="linkDistanceValue" style="width: 36px; text-align: right; font-size: 0.9rem;">80</span>
+    </div>
+
+    <button id="toggleSidebarBtn" title="Toggle file list">☰</button>
+  </div>
+  <div id="main">
+    <div id="graph"></div>
+    <div id="urls">
+      <h3>Loaded Files</h3>
+      <ul id="fileList"></ul>
+    </div>
+  </div>
+  <div id="tooltip"></div>
+
+  <script>
+    const graphDiv = document.getElementById('graph');
+    const svg = d3.select(graphDiv).append("svg")
+      .attr("width", "100%")
+      .attr("height", "100%");
+
+    const g = svg.append("g");
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 10])
+      .on("zoom", zoomed);
+
+    svg.call(zoom);
+
+    function zoomed(event) {
+      g.attr("transform", event.transform);
+    }
+
+    const centerForce = d3.forceCenter(graphDiv.clientWidth / 2, graphDiv.clientHeight / 2);
+    const linkForce = d3.forceLink().id(d => d.id).distance(80);
+    const simulation = d3.forceSimulation()
+      .force("link", linkForce)
+      .force("charge", d3.forceManyBody())
+      .force("center", centerForce);
+
+    const distanceSlider = document.getElementById('linkDistanceRange');
+    const distanceLabel = document.getElementById('linkDistanceValue');
+
+    function updateLinkDistance(value) {
+      linkForce.distance(value);
+      distanceLabel.textContent = value;
+      simulation.alpha(0.3).restart();
+    }
+
+    distanceSlider.addEventListener('input', event => {
+      updateLinkDistance(event.target.value);
+    });
+
+    function resizeGraph() {
+      const w = graphDiv.clientWidth;
+      const h = graphDiv.clientHeight;
+      centerForce.x = w / 2;
+      centerForce.y = h / 2;
+      simulation.alpha(0.3).restart();
+    }
+
+    window.addEventListener('resize', resizeGraph);
+    resizeGraph();
+
+    const tooltip = d3.select("#tooltip");
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+    const urlsPanel = document.getElementById('urls');
+    const loadTopBtn = document.getElementById('loadTopBtn');
+    const loadProcessesBtn = document.getElementById('loadProcessesBtn');
+
+    let graph = { nodes: [], links: [] };
+    let loadedFiles = [];
+    let globalStore = $rdf.graph();
+    let positions = new Map();
+    let link;
+    let labels;
+
+    function toggleSidebar() {
+      urlsPanel.classList.toggle('collapsed');
+      // allow layout to update before recalculating center
+      setTimeout(resizeGraph, 50);
+    }
+
+    toggleSidebarBtn.addEventListener('click', toggleSidebar);
+
+    // Load RDF from the server /top endpoint (uses the current host)
+    loadTopBtn.textContent = window.location.hostname || 'top';
+    loadTopBtn.addEventListener('click', loadTopRDF);
+    loadProcessesBtn.addEventListener('click', loadProcessesRDF);
+
+    async function loadTopRDF() {
+      try {
+        const resp = await fetch('/top');
+        const data = await resp.text();
+        loadRDFText(data, 'application/rdf+xml', window.location.origin + '/top');
+      } catch (err) {
+        console.error('Failed to load /top', err);
+      }
+    }
+
+    async function loadProcessesRDF() {
+      try {
+        const resp = await fetch('/processes_list');
+        const data = await resp.text();
+        loadRDFText(data, 'application/rdf+xml', window.location.origin + '/processes_list');
+      } catch (err) {
+        console.error('Failed to load /processes_list', err);
+      }
+    }
+
+    function loadRDFText(data, contentType, sourceLabel) {
+      const store = globalStore;
+      try {
+        $rdf.parse(data, store, 'http://example.org/', contentType);
+        console.log('Parsed, store now has', store.statements.length, 'statements');
+        updateGraph(store);
+        if (sourceLabel) updateFileList(sourceLabel);
+      } catch (error) {
+        console.error('Error parsing RDF:', error);
+      }
+    }
+
+    function getClass(url) {
+      if (!url.includes('?xid=')) return 'default';
+      const query = url.split('?')[1];
+      if (!query) return 'default';
+      const params = query.split('&');
+      const xid = params.find(p => p.startsWith('xid='));
+      if (!xid) return 'default';
+      const value = xid.split('=')[1];
+      const hierarchy = value.split('.')[0]; // e.g. Linux/cgroup
+      return hierarchy.replace(/\//g, ' '); // 'Linux cgroup'
+    }
+
+    function getShape(classStr) {
+      if (classStr.includes('CIM_Process')) return 'circle';
+      if (classStr.includes('LMI_Account')) return 'ellipse';
+      if (classStr.includes('python')) return 'roundrect';
+      return 'rect';
+    }
+
+    function getLinkClass(pred) {
+      if (pred.startsWith("http://www.primhillcomputers.com/survol#")) {
+        const suffix = pred.split('#')[1];
+        return suffix;
+      }
+      return 'default';
+    }
+
+    function shortenLabel(url) {
+      // Default label: last path segment or query element
+      try {
+        const u = new URL(url);
+        const path = u.pathname.split('/').filter(Boolean).pop();
+        if (path) return path;
+        if (u.search) return u.search.substring(1);
+      } catch (e) {
+        // fallback to naive split
+        const parts = url.split(/[\/\?#]/).filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : url;
+      }
+      return url;
+    }
+
+    function generateTable(literals) {
+      let html = "<table border='1'><tr><th>Predicate</th><th>Value</th></tr>";
+      literals.forEach(l => {
+        html += `<tr><td>${l.predicate}</td><td>${l.value}</td></tr>`;
+      });
+      html += "</table>";
+      return html;
+    }
+
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    function attachNodeInteractivity(selection) {
+      selection
+        .on("mouseover", function(event, d) {
+          if (d.literals && d.literals.length > 0) {
+            tooltip.style("display", "block")
+              .style("left", (event.pageX + 10) + "px")
+              .style("top", (event.pageY - 10) + "px")
+              .html(generateTable(d.literals));
+          }
+        })
+        .on("mouseout", function() {
+          tooltip.style("display", "none");
+        })
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', loadRDF);
+
+    function loadRDF() {
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = e.target.result;
+        let contentType = 'text/turtle';
+        if (file.name.toLowerCase().endsWith('.rdf') || data.trim().startsWith('<')) {
+          contentType = 'application/rdf+xml';
+        }
+        console.log('Loading file:', file.name, 'contentType:', contentType);
+        loadRDFText(data, contentType, file.name);
+      };
+      reader.readAsText(file);
+    }
+
+    function updateGraph(store) {
+      console.log('Updating graph with', store.statements.length, 'statements');
+      g.selectAll("*").remove();  // Clear previous elements in g
+
+      // First pass: collect ontology nodes (rdf:Property / rdfs:Class) and their labels/comments.
+      const ontologyNodesMap = new Map();
+      store.statements.forEach(statement => {
+        const pred = statement.predicate.value;
+        const obj = statement.object.value;
+        const subj = statement.subject.value;
+
+        const isTypeProperty = pred === 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' &&
+          (obj === 'http://www.w3.org/1999/02/22-rdf-syntax-ns#Property' || obj === 'http://www.w3.org/2000/01/rdf-schema#Class');
+
+        if (isTypeProperty) {
+          if (!ontologyNodesMap.has(subj)) {
+            ontologyNodesMap.set(subj, { label: null, comment: null });
+          }
+        }
+
+        if (ontologyNodesMap.has(subj) && (pred === 'http://www.w3.org/2000/01/rdf-schema#label' || pred === 'http://www.w3.org/2000/01/rdf-schema#comment')) {
+          const entry = ontologyNodesMap.get(subj);
+          if (pred.endsWith('/label')) entry.label = statement.object.value;
+          if (pred.endsWith('/comment')) entry.comment = statement.object.value;
+        }
+      });
+
+      const nodesMap = new Map();
+      const links = [];
+      const linkSet = new Set();
+
+      function shortenPredicate(pred) {
+        const parts = pred.split(/[#/]/);
+        return parts[parts.length - 1];
+      }
+
+      store.statements.forEach(statement => {
+        console.log('Statement:', statement.subject.value, statement.predicate.value, statement.object.value, 'Object type:', statement.object.termType);
+        const subj = statement.subject.value;
+        // skip ontology nodes entirely
+        if (ontologyNodesMap.has(subj)) return;
+
+        if (!nodesMap.has(subj)) nodesMap.set(subj, { id: subj, label: subj, displayLabel: shortenLabel(subj), literals: [] });
+
+        if (statement.object.termType === 'Literal') {
+          const predShort = shortenPredicate(statement.predicate.value);
+          const value = statement.object.value;
+          // rdfs:label should be displayed inside the node shape
+          const isLabel = statement.predicate.value.endsWith('/label') || statement.predicate.value.endsWith('#label');
+          if (isLabel) {
+            nodesMap.get(subj).displayLabel = value;
+          } else {
+            nodesMap.get(subj).literals.push({ predicate: predShort, value });
+          }
+          console.log('Added literal to', subj, ':', predShort, '=', value);
+        } else {
+          const obj = statement.object.value;
+          if (!nodesMap.has(obj)) nodesMap.set(obj, { id: obj, label: obj, literals: [] });
+          const linkKey = `${subj} -> ${obj}`;
+          if (!linkSet.has(linkKey)) {
+            linkSet.add(linkKey);
+            links.push({
+              source: subj,
+              target: obj,
+              label: statement.predicate.value
+            });
+            console.log('Added link:', subj, '->', obj);
+          }
+        }
+      });
+
+      graph.nodes = Array.from(nodesMap.values());
+      graph.links = links;
+      console.log('Graph has', graph.nodes.length, 'nodes and', graph.links.length, 'links');
+
+      // Preserve positions
+      graph.nodes.forEach(node => {
+        if (positions.has(node.id)) {
+          const pos = positions.get(node.id);
+          node.x = pos.x;
+          node.y = pos.y;
+          node.fx = pos.fx;
+          node.fy = pos.fy;
+        }
+      });
+
+      graph.nodes = Array.from(nodesMap.values());
+      graph.links = links;
+      console.log('Graph has', graph.nodes.length, 'nodes and', graph.links.length, 'links');
+
+      // Preserve positions
+      graph.nodes.forEach(node => {
+        if (positions.has(node.id)) {
+          const pos = positions.get(node.id);
+          node.x = pos.x;
+          node.y = pos.y;
+          node.fx = pos.fx;
+          node.fy = pos.fy;
+        }
+      });
+
+      // Generate dynamic CSS for links
+      const linkClasses = new Set();
+      graph.links.forEach(link => {
+        const cls = getLinkClass(link.label);
+        linkClasses.add(cls);
+      });
+      const specificColors = {
+        'directory': 'brown',
+        'cgroup': 'purple',
+        'account': 'red',
+        // Add more specific colors as needed
+      };
+      let css = '';
+      const colors = ['blue', 'green', 'orange', 'purple', 'pink', 'gray'];
+      let colorIndex = 0;
+      linkClasses.forEach(cls => {
+        if (specificColors[cls]) {
+          css += `.${cls} { stroke: ${specificColors[cls]}; stroke-width: 2; }\n`;
+        } else if (cls === 'default') {
+          css += '.default { stroke: black; stroke-width: 1; }\n';
+        } else {
+          const color = colors[colorIndex % colors.length];
+          css += `.${cls} { stroke: ${color}; stroke-width: 2; }\n`;
+          colorIndex++;
+        }
+      });
+      d3.select("#dynamic-style").text(css);
+
+      // Group nodes by shape
+      const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [] };
+      graph.nodes.forEach(node => {
+        const shape = getShape(getClass(node.id));
+        nodesByShape[shape].push(node);
+      });
+
+      // Create node shapes
+      let circles, ellipses, rects, roundrects;
+
+      // Create circles
+      if (nodesByShape.circle.length > 0) {
+        const circleGroup = g.append("g").attr("class", "circles");
+        circles = circleGroup.selectAll("circle")
+          .data(nodesByShape.circle)
+          .enter().append("circle")
+          .attr("r", 5)
+          .attr("class", d => getClass(d.id))
+          .each(function(d) { d.shape = this; });
+        attachNodeInteractivity(circles);
+        console.log('Created', circles.size(), 'circles');
+      }
+
+      // Create ellipses
+      if (nodesByShape.ellipse.length > 0) {
+        const ellipseGroup = g.append("g").attr("class", "ellipses");
+        ellipses = ellipseGroup.selectAll("ellipse")
+          .data(nodesByShape.ellipse)
+          .enter().append("ellipse")
+          .attr("rx", 8)
+          .attr("ry", 5)
+          .attr("class", d => getClass(d.id))
+          .each(function(d) { d.shape = this; });
+        attachNodeInteractivity(ellipses);
+        console.log('Created', ellipses.size(), 'ellipses');
+      }
+
+      // Create rects
+      if (nodesByShape.rect.length > 0) {
+        const rectGroup = g.append("g").attr("class", "rects");
+        rects = rectGroup.selectAll("rect")
+          .data(nodesByShape.rect)
+          .enter().append("rect")
+          .attr("width", 10)
+          .attr("height", 10)
+          .attr("class", d => getClass(d.id))
+          .each(function(d) { d.shape = this; });
+        attachNodeInteractivity(rects);
+        console.log('Created', rects.size(), 'rects');
+      }
+
+      // Create roundrects
+      if (nodesByShape.roundrect.length > 0) {
+        const roundrectGroup = g.append("g").attr("class", "roundrects");
+        roundrects = roundrectGroup.selectAll("rect")
+          .data(nodesByShape.roundrect)
+          .enter().append("rect")
+          .attr("width", 10)
+          .attr("height", 10)
+          .attr("rx", 8)
+          .attr("ry", 8)
+          .attr("class", d => getClass(d.id))
+          .each(function(d) { d.shape = this; });
+        attachNodeInteractivity(roundrects);
+        console.log('Created', roundrects.size(), 'roundrects');
+      }
+
+      // Create links
+      link = g.append("g")
+        .attr("class", "links")
+        .selectAll("line")
+        .data(graph.links)
+        .enter().append("line")
+        .attr("stroke", "black")
+        .attr("stroke-width", 1)
+        .attr("class", d => getLinkClass(d.label));
+      console.log('Created', link.size(), 'links');
+
+      // Create labels on top of shapes
+      labels = g.append("g").attr("class", "labels")
+        .selectAll("text")
+        .data(graph.nodes)
+        .enter().append("text")
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "middle")
+        .attr("font-size", 10)
+        .text(d => d.displayLabel || shortenLabel(d.id));
+
+      // Ensure links are behind nodes and labels
+      g.selectAll(".links").lower();
+      g.selectAll(".circles, .ellipses, .rects, .roundrects, .labels").raise();
+
+      // Resize shapes based on label size (after labels exist in the DOM)
+      labels.each(function(d) {
+        const bbox = this.getBBox();
+        const padding = 6;
+        const maxWidth = 120;
+        const maxHeight = 40;
+        const width = Math.min(bbox.width + padding * 2, maxWidth);
+        const height = Math.min(bbox.height + padding * 2, maxHeight);
+        d.width = width;
+        d.height = height;
+        if (d.shape) {
+          const shape = d3.select(d.shape);
+          const tag = shape.node().tagName;
+          if (tag === 'circle') {
+            const r = Math.max(width, height) / 2;
+            d.r = r;
+            shape.attr('r', r);
+          } else if (tag === 'ellipse') {
+            const rx = width / 2;
+            const ry = height / 2;
+            d.rx = rx;
+            d.ry = ry;
+            shape.attr('rx', rx)
+              .attr('ry', ry);
+          } else if (tag === 'rect') {
+            shape.attr('width', width)
+              .attr('height', height);
+          }
+        }
+      });
+
+
+      simulation.stop();  // Stop previous simulation
+      simulation.on("tick", null);  // Clear previous tick handler
+      simulation
+        .nodes(graph.nodes)
+        .on("tick", ticked);
+
+      simulation.force("link")
+        .links(graph.links);
+
+      simulation.alpha(1).restart();
+
+      function ticked() {
+        if (link) {
+          link
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+        }
+
+        if (circles) circles.attr("cx", d => d.x).attr("cy", d => d.y);
+        if (ellipses) ellipses.attr("cx", d => d.x).attr("cy", d => d.y);
+        if (rects) rects
+            .attr("x", d => d.x - (d.width ? d.width / 2 : 5))
+            .attr("y", d => d.y - (d.height ? d.height / 2 : 5));
+        if (roundrects) roundrects
+            .attr("x", d => d.x - (d.width ? d.width / 2 : 5))
+            .attr("y", d => d.y - (d.height ? d.height / 2 : 5));
+        if (labels) labels.attr("x", d => d.x).attr("y", d => d.y);
+
+        // Update positions
+        graph.nodes.forEach(d => {
+          positions.set(d.id, { x: d.x, y: d.y, fx: d.fx, fy: d.fy });
+        });
+      }
+    }
+
+    function updateFileList(fileName) {
+      if (!loadedFiles.includes(fileName)) {
+        loadedFiles.push(fileName);
+        const li = document.createElement('li');
+        li.textContent = fileName;
+        document.getElementById('fileList').appendChild(li);
+      }
+    }
+  </script>
+</body>
+</html>

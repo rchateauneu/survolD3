@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+   xmlns:ldt="http://www.primhillcomputers.com/survol#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=16970">
+    <rdfs:label>python</rdfs:label>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+    <ldt:Handle>16970</ldt:Handle>
+    <ldt:pid>16970</ldt:pid>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#CIM_Process">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label>CIM_Process</rdfs:label>
+    <rdfs:comment>Standard process. Uniquely associated to a CIM_ComputerSystem and a parent CIM_Process.</rdfs:comment>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#open_file">
+    <rdfs:comment>Predicate open_file</rdfs:comment>
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <rdfs:range rdf:resource="http://www.primhillcomputers.com/survol#CIM_DataFile"/>
+    <rdfs:domain rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=vps516494.ovh.net">
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_ComputerSystem"/>
+    <ldt:Name>vps516494.ovh.net</ldt:Name>
+    <rdfs:label>vps516494.ovh.net</rdfs:label>
+    <ldt:hostname>vps516494.ovh.net</ldt:hostname>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=25671">
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+    <rdfs:label>python</rdfs:label>
+    <ldt:Handle>25671</ldt:Handle>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <ldt:pid>25671</ldt:pid>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=2891">
+    <ldt:Handle>2891</ldt:Handle>
+    <rdfs:label>python</rdfs:label>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <ldt:pid>2891</ldt:pid>
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#CIM_ComputerSystem">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label>CIM_ComputerSystem</rdfs:label>
+    <rdfs:comment>Computer system.
+
+Scripts related to the class CIM_ComputerSystem.</rdfs:comment>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#hostname">
+    <rdfs:domain rdf:resource="http://www.primhillcomputers.com/survol#CIM_ComputerSystem"/>
+    <rdfs:comment>Predicate hostname</rdfs:comment>
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd">
+    <rdfs:label>passwd</rdfs:label>
+    <ldt:Name>/var/lib/sss/mc/passwd</ldt:Name>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_DataFile"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=28694">
+    <ldt:pid>28694</ldt:pid>
+    <rdfs:label>python</rdfs:label>
+    <ldt:Handle>28694</ldt:Handle>
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=27545">
+    <rdfs:label>python</rdfs:label>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+    <ldt:Handle>27545</ldt:Handle>
+    <ldt:pid>27545</ldt:pid>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#Name">
+    <rdfs:comment>Ontology predicate Name</rdfs:comment>
+    <rdfs:domain rdf:resource="http://www.primhillcomputers.com/survol#CIM_DataFile"/>
+    <rdfs:domain rdf:resource="http://www.primhillcomputers.com/survol#CIM_ComputerSystem"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=16823">
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <ldt:Handle>16823</ldt:Handle>
+    <ldt:pid>16823</ldt:pid>
+    <rdfs:label>python</rdfs:label>
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_Process.Handle=4268">
+    <rdfs:label>python</rdfs:label>
+    <ldt:Handle>4268</ldt:Handle>
+    <ldt:open_file rdf:resource="http://vps516494.ovh.net:80/Survol/survol/entity.py?xid=CIM_DataFile.Name=%2Fvar%2Flib%2Fsss%2Fmc%2Fpasswd"/>
+    <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <ldt:pid>4268</ldt:pid>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#Handle">
+    <rdfs:domain rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <rdfs:comment>Ontology predicate Handle</rdfs:comment>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#CIM_DataFile">
+    <rdfs:comment>Standard data file.</rdfs:comment>
+    <rdfs:label>CIM_DataFile</rdfs:label>
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://www.primhillcomputers.com/survol#pid">
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    <rdfs:comment>Predicate pid</rdfs:comment>
+    <rdfs:domain rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
+  </rdf:Description>
+</rdf:RDF>
