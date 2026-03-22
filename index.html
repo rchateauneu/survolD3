@@ -342,6 +342,14 @@
         return parts[parts.length - 1];
       }
 
+      function addNode(subj) {
+        if (!nodesMap.has(subj)) {
+          const subjectClass = getClass(subj);
+          console.log('Adding node for url:', subj, 'with class:', subjectClass);
+          nodesMap.set(subj, { id: subj, label: subj, displayLabel: shortenLabel(subj), literals: [], itemClass: subjectClass });
+        }
+      }
+
       console.log('Second pass: Building graph nodes and links, skipping ontology nodes');
       store.statements.forEach(statement => {
         console.log('Statement:', statement.subject.value, statement.predicate.value, statement.object.value, 'Object type:', statement.object.termType);
@@ -352,7 +360,7 @@
           return;
         }
 
-        if (!nodesMap.has(subj)) nodesMap.set(subj, { id: subj, label: subj, displayLabel: shortenLabel(subj), literals: [] });
+        addNode(subj);
 
         if (statement.object.termType === 'Literal') {
           const predShort = shortenPredicate(statement.predicate.value);
@@ -367,11 +375,12 @@
           console.log('Added literal to', subj, ':', predShort, '=', value);
         } else if (statement.object.value.startsWith('http://www.primhillcomputers.com/survol#')) {
           const subjectType = getLinkClass(statement.object.value)
-          nodesMap.get(subj).literals.push({ predicate: "Class", value: subjectType });
-          console.log('Added class to', subj, ': Class =', subjectType);
+          // It must be the same as the class taken from the URL, but we can use it to confirm or correct the class if needed.
+          // If the class cannot be extracted from the URL, it could be set here.
+          console.log('Detected class to', subj, ': Class =', subjectType);
         } else {
           const obj = statement.object.value;
-          if (!nodesMap.has(obj)) nodesMap.set(obj, { id: obj, label: obj, literals: [] });
+          addNode(obj);
           const linkKey = `${subj} -> ${obj}`;
           if (!linkSet.has(linkKey)) {
             linkSet.add(linkKey);
@@ -382,21 +391,6 @@
             });
             console.log('Added link:', subj, '->', obj);
           }
-        }
-      });
-
-      graph.nodes = Array.from(nodesMap.values());
-      graph.links = links;
-      console.log('Graph has', graph.nodes.length, 'nodes and', graph.links.length, 'links');
-
-      // Preserve positions
-      graph.nodes.forEach(node => {
-        if (positions.has(node.id)) {
-          const pos = positions.get(node.id);
-          node.x = pos.x;
-          node.y = pos.y;
-          node.fx = pos.fx;
-          node.fy = pos.fy;
         }
       });
 
@@ -446,7 +440,8 @@
       // Group nodes by shape
       const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [] };
       graph.nodes.forEach(node => {
-        const shape = getShape(getClass(node.id));
+        console.log('Processing node:', node.id, 'with class:', node.itemClass);
+        const shape = getShape(node.itemClass);
         nodesByShape[shape].push(node);
       });
 
@@ -460,7 +455,7 @@
           .data(nodesByShape.circle)
           .enter().append("circle")
           .attr("r", 5)
-          .attr("class", d => getClass(d.id))
+          .attr("class", d => d.itemClass)
           .each(function(d) { d.shape = this; });
         attachNodeInteractivity(circles);
         console.log('Created', circles.size(), 'circles');
@@ -474,7 +469,7 @@
           .enter().append("ellipse")
           .attr("rx", 8)
           .attr("ry", 5)
-          .attr("class", d => getClass(d.id))
+          .attr("class", d => d.itemClass)
           .each(function(d) { d.shape = this; });
         attachNodeInteractivity(ellipses);
         console.log('Created', ellipses.size(), 'ellipses');
@@ -488,7 +483,7 @@
           .enter().append("rect")
           .attr("width", 10)
           .attr("height", 10)
-          .attr("class", d => getClass(d.id))
+          .attr("class", d => d.itemClass)
           .each(function(d) { d.shape = this; });
         attachNodeInteractivity(rects);
         console.log('Created', rects.size(), 'rects');
@@ -504,7 +499,7 @@
           .attr("height", 10)
           .attr("rx", 8)
           .attr("ry", 8)
-          .attr("class", d => getClass(d.id))
+          .attr("class", d => d.itemClass)
           .each(function(d) { d.shape = this; });
         attachNodeInteractivity(roundrects);
         console.log('Created', roundrects.size(), 'roundrects');
