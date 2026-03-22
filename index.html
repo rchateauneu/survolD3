@@ -212,7 +212,7 @@
     }
 
     function getShape(classStr) {
-      if (classStr.includes('CIM_Process')) return 'circle';
+      if (classStr.includes('CIM_Process')) return 'chamfered';
       if (classStr.includes('CIM_DiskPartition')) return 'circle';
       if (classStr.includes('LMI_Account')) return 'ellipse';
       if (classStr.includes('python')) return 'roundrect';
@@ -441,7 +441,7 @@
       d3.select("#dynamic-style").text(css);
 
       // Group nodes by shape
-      const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [] };
+      const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [], chamfered: [] };
       graph.nodes.forEach(node => {
         console.log('Processing node:', node.id, 'with class:', node.itemClass);
         const shape = getShape(node.itemClass);
@@ -449,7 +449,7 @@
       });
 
       // Create node shapes
-      let circles, ellipses, rects, roundrects;
+      let circles, ellipses, rects, roundrects, chamfereds;
 
       // Create circles
       if (nodesByShape.circle.length > 0) {
@@ -508,6 +508,18 @@
         console.log('Created', roundrects.size(), 'roundrects');
       }
 
+      // Create chamfered rects
+      if (nodesByShape.chamfered.length > 0) {
+        const chamferedGroup = g.append("g").attr("class", "chamfereds");
+        chamfereds = chamferedGroup.selectAll("path")
+          .data(nodesByShape.chamfered)
+          .enter().append("path")
+          .attr("class", d => d.itemClass)
+          .each(function(d) { d.shape = this; });
+        attachNodeInteractivity(chamfereds);
+        console.log('Created', chamfereds.size(), 'chamfereds');
+      }
+
       // Create links
       link = g.append("g")
         .attr("class", "links")
@@ -561,6 +573,13 @@
             shape.attr('width', width)
               .attr('height', height);
           }
+          else if (tag === 'path') { // For chamfered rect
+            const cornerCut = 5;
+            const w = d.width;
+            const h = d.height;
+            const pathData = `M ${cornerCut},0 L ${w-cornerCut},0 L ${w},${cornerCut} L ${w},${h-cornerCut} L ${w-cornerCut},${h} L ${cornerCut},${h} L 0,${h-cornerCut} L 0,${cornerCut} Z`;
+            shape.attr('d', pathData);
+          }
         }
       });
 
@@ -593,6 +612,8 @@
         if (roundrects) roundrects
             .attr("x", d => d.x - (d.width ? d.width / 2 : 5))
             .attr("y", d => d.y - (d.height ? d.height / 2 : 5));
+        if (chamfereds) chamfereds
+            .attr("transform", d => `translate(${d.x - (d.width ? d.width / 2 : 5)}, ${d.y - (d.height ? d.height / 2 : 5)})`);
         if (labels) labels.attr("x", d => d.x).attr("y", d => d.y);
 
         // Update positions
