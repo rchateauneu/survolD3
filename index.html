@@ -241,8 +241,10 @@
       return url;
     }
 
-    function generateTable(literals) {
-      let html = "<table border='1'><tr><th>Predicate</th><th>Value</th></tr>";
+    function generateTable(itemClass, literals) {
+      let html = `<table border='1'><tr><th colspan=2>${itemClass}</th></tr>`;
+      // This is done at each display, but the number of literals is usually small and it ensures consistent ordering.
+      literals.sort((a, b) => a.predicate.localeCompare(b.predicate));
       literals.forEach(l => {
         html += `<tr><td>${l.predicate}</td><td>${l.value}</td></tr>`;
       });
@@ -274,7 +276,7 @@
             tooltip.style("display", "block")
               .style("left", (event.pageX + 10) + "px")
               .style("top", (event.pageY - 10) + "px")
-              .html(generateTable(d.literals));
+              .html(generateTable(d.itemClass, d.literals));
           }
         })
         .on("mouseout", function() {
