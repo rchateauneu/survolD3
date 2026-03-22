@@ -213,6 +213,7 @@
 
     function getShape(classStr) {
       if (classStr.includes('CIM_Process')) return 'circle';
+      if (classStr.includes('CIM_DiskPartition')) return 'circle';
       if (classStr.includes('LMI_Account')) return 'ellipse';
       if (classStr.includes('python')) return 'roundrect';
       return 'rect';
