@@ -310,6 +310,7 @@
       g.selectAll("*").remove();  // Clear previous elements in g
 
       // First pass: collect ontology nodes (rdf:Property / rdfs:Class) and their labels/comments.
+      console.log('First pass: Collecting ontology nodes and their labels/comments');
       const ontologyNodesMap = new Map();
       store.statements.forEach(statement => {
         const pred = statement.predicate.value;
@@ -341,11 +342,15 @@
         return parts[parts.length - 1];
       }
 
+      console.log('Second pass: Building graph nodes and links, skipping ontology nodes');
       store.statements.forEach(statement => {
         console.log('Statement:', statement.subject.value, statement.predicate.value, statement.object.value, 'Object type:', statement.object.termType);
         const subj = statement.subject.value;
         // skip ontology nodes entirely
-        if (ontologyNodesMap.has(subj)) return;
+        if (ontologyNodesMap.has(subj)) {
+          console.log('Skipping ontology node:', subj);
+          return;
+        }
 
         if (!nodesMap.has(subj)) nodesMap.set(subj, { id: subj, label: subj, displayLabel: shortenLabel(subj), literals: [] });
 
@@ -360,6 +365,10 @@
             nodesMap.get(subj).literals.push({ predicate: predShort, value });
           }
           console.log('Added literal to', subj, ':', predShort, '=', value);
+        } else if (statement.object.value.startsWith('http://www.primhillcomputers.com/survol#')) {
+          const subjectType = getLinkClass(statement.object.value)
+          nodesMap.get(subj).literals.push({ predicate: "Class", value: subjectType });
+          console.log('Added class to', subj, ': Class =', subjectType);
         } else {
           const obj = statement.object.value;
           if (!nodesMap.has(obj)) nodesMap.set(obj, { id: obj, label: obj, literals: [] });
