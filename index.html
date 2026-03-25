@@ -536,6 +536,7 @@
         .selectAll("text")
         .data(graph.nodes)
         .enter().append("text")
+        .attr("class", d => d.itemClass)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "middle")
         .attr("font-size", 10)

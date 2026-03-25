@@ -6,10 +6,16 @@ const si = require('systeminformation');
 const app = express();
 const port = 8765;
 
+const LDT = $rdf.Namespace("http://www.primhillcomputers.com/survol#");
+const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
+
+detectedProcesses = new Set();
+detectedParents = new Set();
+
 function fillProcess(rdf, SERVER_HOST, PORT_NUMBER, USER_NAME, PARENT_PID, PROCESS_NAME, PID) {
-  const LDT = $rdf.Namespace("http://www.primhillcomputers.com/survol#");
-  const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
-  const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
+  detectedProcesses.add(PID);
+  detectedParents.add(PARENT_PID);
 
   const baseUrl = `http://${SERVER_HOST}:${PORT_NUMBER}/Survol/survol/entity.py`;
 
@@ -48,12 +54,34 @@ async function fillProcessesList(SERVER_HOST, PORT_NUMBER) {
   } catch (error) {
     console.error("Error getting process list:", error);
   }
-
+  undefinedProcs = new Set([...detectedParents].filter(x => !detectedProcesses.has(x)));
+  undefinedProcs.forEach(pid => {
+    console.warn(`Parent PID ${pid} not found in process list. Adding placeholder node.`);
+    fillProcess(rdf, SERVER_HOST, PORT_NUMBER, 'unknown', 'unknown', `Unknown Process ${pid}`, pid);
+  });
   return rdf;
 }
 
 app.use(cors());
 app.use(express.static('.'));
+
+
+/*
+Desfois, on dirait que des processes n'apparaissent que comme des ppid:
+
+statements Statement: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=19920 http://www.primhillcomputers.com/survol#ppid http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124
+(index):360 Statement: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=19920 http://www.primhillcomputers.com/survol#ppid http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 Object type: NamedNode
+(index):353 Adding node for url: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 with class: CIM_Process
+(index):397 Added link: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=19920 -> http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124
+(index):419 Node: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 Class: CIM_Process Label: entity.py Literals: 0
+(index):453 Processing node: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 with class: CIM_Process
+
+Confirmation en ligne de commande.
+
+En tout cas, il faut un bon label par defaut, avec le pid, pour que ce soit visible dans le graph. Sinon, on a des nodes sans label, et c'est pas top.
+*/
+
+
 
 // Pluggable RDF endpoints (add more keys here)
 const rdfEndpoints = {

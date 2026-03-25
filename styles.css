@@ -30,6 +30,10 @@ ellipse {
   fill: blue;
 }
 
+text.CIM_Process {
+  fill: white;
+}
+
 .CIM_DataFile {
   fill: lightgreen;
 }
