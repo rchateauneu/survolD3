@@ -4,52 +4,54 @@ const $rdf = require('rdflib');
 const si = require('systeminformation');
 
 const app = express();
+app.use(cors());
+app.use(express.static('.'));
+
 const port = 8765;
 
 const LDT = $rdf.Namespace("http://www.primhillcomputers.com/survol#");
 const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
 
-detectedProcesses = new Set();
-detectedParents = new Set();
+function fillProcess(store, serverHost, portNumber, userName, parentPid, processName, processId) {
+  const baseUrl = `http://${serverHost}:${portNumber}/Survol/survol/entity.py`;
 
-function fillProcess(rdf, SERVER_HOST, PORT_NUMBER, USER_NAME, PARENT_PID, PROCESS_NAME, PID) {
-  detectedProcesses.add(PID);
-  detectedParents.add(PARENT_PID);
-
-  const baseUrl = `http://${SERVER_HOST}:${PORT_NUMBER}/Survol/survol/entity.py`;
-
-  const processUri = `${baseUrl}?xid=CIM_Process.Handle=${PID}`;
+  const processUri = `${baseUrl}?xid=CIM_Process.Handle=${processId}`;
   const processNode = $rdf.namedNode(processUri);
 
   // <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
-  rdf.add(processNode, RDF('type'), LDT('CIM_Process'));
+  store.add(processNode, RDF('type'), LDT('CIM_Process'));
 
   // <ldt:account rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=LMI_Account.Name=<USER_NAME>,Domain=<SERVER_HOST>"/>
-  const accountUri = `${baseUrl}?xid=LMI_Account.Name=${USER_NAME},Domain=${SERVER_HOST}`;
-  rdf.add(processNode, LDT('account'), $rdf.namedNode(accountUri));
+  const accountUri = `${baseUrl}?xid=LMI_Account.Name=${userName},Domain=${serverHost}`;
+  store.add(processNode, LDT('account'), $rdf.namedNode(accountUri));
 
   // <ldt:Handle>24</ldt:Handle> -> Using PID.
-  rdf.add(processNode, LDT('Handle'), $rdf.literal(String(PID)));
+  store.add(processNode, LDT('Handle'), $rdf.literal(String(processId)));
 
   // <ldt:ppid rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=CIM_Process.Handle=<PARENT_PID>"/>
-  const parentProcessUri = `${baseUrl}?xid=CIM_Process.Handle=${PARENT_PID}`;
-  rdf.add(processNode, LDT('ppid'), $rdf.namedNode(parentProcessUri));
+  const parentProcessUri = `${baseUrl}?xid=CIM_Process.Handle=${parentPid}`;
+  store.add(processNode, LDT('ppid'), $rdf.namedNode(parentProcessUri));
 
   // <rdfs:label><PROCESS_NAME></rdfs:label>
-  rdf.add(processNode, RDFS('label'), $rdf.literal(PROCESS_NAME));
+  store.add(processNode, RDFS('label'), $rdf.literal(processName));
 
   // <ldt:pid><PID></ldt:pid>
-  rdf.add(processNode, LDT('pid'), $rdf.literal(String(PID)));
+  store.add(processNode, LDT('pid'), $rdf.literal(String(processId)));
 }
 
-async function fillProcessesList(SERVER_HOST, PORT_NUMBER) {
-  const rdf = $rdf.graph();
+async function fillProcessesList(serverHost, portNumber) {
+  const store = $rdf.graph();
+  detectedProcesses = new Set();
+  detectedParents = new Set();
 
   try {
     const data = await si.processes();
     data.list.forEach(p => {
-      fillProcess(rdf, SERVER_HOST, PORT_NUMBER, p.user, p.parentPid, p.name, p.pid);
+      detectedProcesses.add(p.pid);
+      detectedParents.add(p.parentPid);
+
+      fillProcess(store, serverHost, portNumber, p.user, p.parentPid, p.name, p.pid);
     });
   } catch (error) {
     console.error("Error getting process list:", error);
@@ -57,59 +59,40 @@ async function fillProcessesList(SERVER_HOST, PORT_NUMBER) {
   undefinedProcs = new Set([...detectedParents].filter(x => !detectedProcesses.has(x)));
   undefinedProcs.forEach(pid => {
     console.warn(`Parent PID ${pid} not found in process list. Adding placeholder node.`);
-    fillProcess(rdf, SERVER_HOST, PORT_NUMBER, 'unknown', 'unknown', `Unknown Process ${pid}`, pid);
+    fillProcess(store, serverHost, portNumber, 'unknown', 'unknown', `Unknown Process ${pid}`, pid);
   });
-  return rdf;
+  console.log(`Leaving with ${detectedProcesses.size} processes and ${undefinedProcs.size} undefined parent processes.`);
+  return store;
 }
 
-app.use(cors());
-app.use(express.static('.'));
+function minimalRdfContent(serverHost, portNumber) {
+  const store = $rdf.graph();
+  const subj = $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);
 
+  store.add(subj, RDFS('label'), $rdf.literal(serverHost));
+  store.add(subj, LDT('Name'), $rdf.literal(serverHost));
+  store.add(subj, RDF('type'), LDT('CIM_ComputerSystem'));
+  return store;
+}
 
-/*
-Desfois, on dirait que des processes n'apparaissent que comme des ppid:
-
-statements Statement: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=19920 http://www.primhillcomputers.com/survol#ppid http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124
-(index):360 Statement: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=19920 http://www.primhillcomputers.com/survol#ppid http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 Object type: NamedNode
-(index):353 Adding node for url: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 with class: CIM_Process
-(index):397 Added link: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=19920 -> http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124
-(index):419 Node: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 Class: CIM_Process Label: entity.py Literals: 0
-(index):453 Processing node: http://example.org/Survol/survol/entity.py?xid=CIM_Process.Handle=12124 with class: CIM_Process
-
-Confirmation en ligne de commande.
-
-En tout cas, il faut un bon label par defaut, avec le pid, pour que ce soit visible dans le graph. Sinon, on a des nodes sans label, et c'est pas top.
-*/
-
+function getHostPort(req) {
+  const hostHeader = req.get('host') || `localhost:${port}`;
+  const [host, maybePort] = hostHeader.split(':');
+  const portNumber = maybePort || port;
+  const serverHost = host || 'localhost';
+  return [serverHost, portNumber];
+}
 
 
 // Pluggable RDF endpoints (add more keys here)
 const rdfEndpoints = {
   top: (req) => {
-    const hostHeader = req.get('host') || `localhost:${port}`;
-    const [host, maybePort] = hostHeader.split(':');
-    const portNumber = maybePort || port;
-    const serverHost = host || 'localhost';
-
-    const store = $rdf.graph();
-    const subj = $rdf.namedNode(`http://${serverHost}:${portNumber}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);
-    const predLabel = $rdf.namedNode('http://www.w3.org/2000/01/rdf-schema#label');
-    const predName = $rdf.namedNode('http://www.primhillcomputers.com/survol#Name');
-    const predType = $rdf.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type');
-    const objType = $rdf.namedNode('http://www.primhillcomputers.com/survol#CIM_ComputerSystem');
-
-    store.add(subj, predLabel, $rdf.literal(serverHost));
-    store.add(subj, predName, $rdf.literal(serverHost));
-    store.add(subj, predType, objType);
-
-    return $rdf.serialize(null, store, null, 'application/rdf+xml');
+    [serverHost, portNumber] = getHostPort(req);
+    const store = minimalRdfContent(serverHost, portNumber);
+    return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
   },
   processes_list: async (req) => {
-    const hostHeader = req.get('host') || `localhost:${port}`;
-    const [host, maybePort] = hostHeader.split(':');
-    const portNumber = maybePort || port;
-    const serverHost = host || 'localhost';
-
+    [serverHost, portNumber] = getHostPort(req);
     const store = await fillProcessesList(serverHost, portNumber);
     return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
   }

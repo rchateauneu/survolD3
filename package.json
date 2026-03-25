@@ -4,7 +4,8 @@
   "description": "RDF viewer with D3 and Node.js server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -13,5 +14,8 @@
     "open": "^8.4.2",
     "rdflib": "^2.2.32",
     "systeminformation": "^5.22.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
