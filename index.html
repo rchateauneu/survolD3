@@ -169,7 +169,7 @@
 
     async function loadTopRDF() {
       try {
-        const resp = await fetch('/top');
+        const resp = await fetch('/classes/CIM_ComputerSystem/top');
         const data = await resp.text();
         loadRDFText(data, 'application/rdf+xml', window.location.origin + '/top');
       } catch (err) {
@@ -179,7 +179,7 @@
 
     async function loadProcessesRDF() {
       try {
-        const resp = await fetch('/processes_list');
+        const resp = await fetch('/classes/CIM_ComputerSystem/processes_list');
         const data = await resp.text();
         loadRDFText(data, 'application/rdf+xml', window.location.origin + '/processes_list');
       } catch (err) {

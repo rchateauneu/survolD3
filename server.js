@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const $rdf = require('rdflib');
 const si = require('systeminformation');
+const fs = require('fs');
+const open = require('open');
 
 const app = express();
 app.use(cors());
@@ -50,7 +52,6 @@ async function fillProcessesList(serverHost, portNumber) {
     data.list.forEach(p => {
       detectedProcesses.add(p.pid);
       detectedParents.add(p.parentPid);
-
       fillProcess(store, serverHost, portNumber, p.user, p.parentPid, p.name, p.pid);
     });
   } catch (error) {
@@ -83,18 +84,24 @@ function getHostPort(req) {
   return [serverHost, portNumber];
 }
 
+rdfEndpoints = {};
 
-// Pluggable RDF endpoints (add more keys here)
-const rdfEndpoints = {
-  top: (req) => {
+rdfEndpoints["CIM_ComputerSystem"] = {
+  top: {
+    endPointComment : "Dummy endpoint to test RDF generation",
+    endPointMethod: (req) => {
     [serverHost, portNumber] = getHostPort(req);
     const store = minimalRdfContent(serverHost, portNumber);
     return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+  }
   },
-  processes_list: async (req) => {
+  processes_list: {
+    endPointComment : "List of processes",
+    endPointMethod: async (req) => {
     [serverHost, portNumber] = getHostPort(req);
     const store = await fillProcessesList(serverHost, portNumber);
     return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+    }
   }
 };
 
@@ -105,9 +112,9 @@ ex:subject ex:predicate ex:object .
 ex:another ex:rel ex:thing .`);
 });
 
-app.get('/:endpoint', async (req, res, next) => {
-  const endpoint = req.params.endpoint;
-  const generator = rdfEndpoints[endpoint];
+app.get('/classes/:className/:endPoint', async (req, res, next) => {
+  const endpoint = req.params.endPoint;
+  const generator = rdfEndpoints[req.params.className]?.[endpoint]?.endPointMethod;
   if (!generator) return next();
   try {
     const rdfData = await generator(req);
@@ -121,6 +128,13 @@ app.get('/:endpoint', async (req, res, next) => {
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  const open = require('open');
-  open(`http://localhost:${port}`);
+  // Do not open the browser at each restart.
+  let browserOpenedContent = '';
+  if (fs.existsSync('browser_opened.txt')) {
+    browserOpenedContent = fs.readFileSync('browser_opened.txt', 'utf8');
+  }
+  if (!browserOpenedContent) {
+    open(`http://localhost:${port}`);
+    fs.writeFileSync('browser_opened.txt', 'true');
+  }
 });
