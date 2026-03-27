@@ -129,23 +129,6 @@ function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
   // Depending on this, the starting point of the menu generation is not rdfEndpoints,
   // but has the same structure.
 
-  /*
-  Again : Consider having a tree of classes and subclasses.
-  Or directories and subdirectories.
-  The leaves of the tree are the endpoints which have an associated method.
-  The intermediate nodes are just for display and navigation purposes, and do not have an associated method.
-
-  Several possible trees:
-  - Static tree defined at server startup, with all endpoints. This is the simplest to implement, but not the most flexible.
-  - Static tree based on class hierarchies.
-  - Static tree based on directories and subdirectories.
-
-  Consider mixing all of them, if needed.
-  Difficulty: We do not want CGI endpoints by default, so we cannot match one-to-one an endpoint with a file.
-  (Which was really cunning when thinking about it).
-
-  TODO: Understand how the server works, if it could be possible to have a dynamic tree, which is generated at demand, and not at server startup.
-  */
   recursiveMenuGeneration(rootUri, theRdfEndpoints, menuToRdf);
   console.log(`generateMenu LEAVING serverHost: ${serverHost}, portNumber: ${portNumber}`);
   return store;
@@ -161,8 +144,9 @@ function getHostPort(req) {
 
 /* This map can be filled several ways:
 - Hard-coded at server startup, with all endpoints. This is the simplest to implement, but not the most flexible.
+  It works even without WMI or WBEM.
 - Dynamically, based on class hierarchies.
-- Dynamically, based on directories and subdirectories.
+- Based on an entire hierarchy of WMI classes.
 - Dynamically, based on the presence of files in a directory, which are not necessarily CGI endpoints, but which have an associated method to generate RDF data.
 */
 
@@ -198,7 +182,7 @@ ex:another ex:rel ex:thing .`);
 });
 
 app.get('/menu/:className', (req, res, next) => {
-  rdfEndpoints.forEach((key, value) => {
+  rdfEndpoints.forEach((value, key) => {
     console.log(`rdfEndpoints element: ${key}`, value);
   });
   console.log("================================");
@@ -207,7 +191,7 @@ app.get('/menu/:className', (req, res, next) => {
   const classEndPoints = rdfEndpoints.get(req.params.className);
   if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
 
-  classEndPoints.forEach((key, value) => {
+  classEndPoints.forEach((value, key) => {
     console.log(`classEndPoint element: ${key}`, value);
   });
   console.log("================================");
@@ -232,10 +216,10 @@ app.get('/menu/:className', (req, res, next) => {
 
 app.get('/classes/:className/:endPoint', async (req, res, next) => {
   const endPoint = req.params.endPoint;
-  const classEndPoints = rdfEndpoints[req.params.className];
+  const classEndPoints = rdfEndpoints.get(req.params.className);
   if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
 
-  endPointObject = classEndPoints[req.params.endPoint];
+  const endPointObject = classEndPoints.get(req.params.endPoint);
   if (!endPointObject) return res.status(404).send(`End point not found: ${req.params.endPoint}`);
 
   const generator = endPointObject.endPointMethod;
