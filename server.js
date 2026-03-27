@@ -66,13 +66,88 @@ async function fillProcessesList(serverHost, portNumber) {
   return store;
 }
 
+
+function rdfRootNode(serverHost, portNumber) {
+  return $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);;
+}
+
 function minimalRdfContent(serverHost, portNumber) {
   const store = $rdf.graph();
-  const subj = $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);
+  const subj = rdfRootNode(serverHost, portNumber);
 
   store.add(subj, RDFS('label'), $rdf.literal(serverHost));
   store.add(subj, LDT('Name'), $rdf.literal(serverHost));
   store.add(subj, RDF('type'), LDT('CIM_ComputerSystem'));
+  return store;
+}
+
+function recursiveMenuGeneration(uriRootEndPoint, theEndPoints, menuToRdfCallback) {
+  console.log(`recursiveMenuGeneration uriRootEndPoint: ${uriRootEndPoint}`);
+  theEndPoints.forEach((value, key) => {
+    console.log(`recursiveMenuGeneration for ${key}: ${value}`);
+  });
+  function callback(value, key, map) {
+    console.log(`callback: ${value}, ${key}`);
+    if (value.endPointComment != undefined && value.endPointComment != undefined) {
+      console.log(`Final menu node: ${key}`);
+      menuToRdfCallback(uriRootEndPoint, key, value);
+    } else {
+      // This is an intermediate node,
+      console.log(`Intermediate menu node: ${key}`);
+      const uriSubEndPoint = uriRootEndPoint + "/" + key;
+      recursiveMenuGeneration(uriSubEndPoint, value, menuToRdfCallback);
+    }
+  };
+  console.log(`theEndPoints: ${theEndPoints}`);
+  theEndPoints.forEach(callback);
+}
+
+function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
+  console.log(`generateMenu serverHost: ${serverHost}, portNumber: ${portNumber}`);
+  console.log(`generateMenu theRdfEndpoints: ${theRdfEndpoints}`);
+  theRdfEndpoints.forEach((value, key) => {
+    console.log(`generateMenu for ${key}: ${value}`);
+  });
+  const store = $rdf.graph();
+
+  function menuToRdf(uriRootEndPoint, key, value) {
+    console.log(`menuToRdf: ${value}, ${key}`);
+    // Intermediate nodes are never seen on the interface.
+    const nodeRootEndPoint = $rdf.namedNode(uriRootEndPoint);
+    // When discovering the trees of menus, if one node has no seeAlso, then it is an intermediate node.
+    // Alternatively, we may choose to build the subnodes at demand, but this prevents to have a beautiful display of the menu tree.
+    store.add(nodeRootEndPoint, RDFS('label'), $rdf.literal(value.endPointComment));
+    // Only clickable nodes which have an associate method.
+    const uriSubEndPoint = uriRootEndPoint + "/" + key;
+    const nodeSubEndPoint = $rdf.namedNode(uriSubEndPoint);
+    store.add(nodeRootEndPoint, RDFS('seeAlso'), $rdf.namedNode(nodeSubEndPoint));
+    console.log(`menuToRdf leaving: ${value}, ${key}`);
+  }
+
+  const rootUri = `http://${serverHost}:${port}/menu/${className}`;
+  // TODO: This might receive the definition of an object and will return its endpoints.
+  // Depending on this, the starting point of the menu generation is not rdfEndpoints,
+  // but has the same structure.
+
+  /*
+  Again : Consider having a tree of classes and subclasses.
+  Or directories and subdirectories.
+  The leaves of the tree are the endpoints which have an associated method.
+  The intermediate nodes are just for display and navigation purposes, and do not have an associated method.
+
+  Several possible trees:
+  - Static tree defined at server startup, with all endpoints. This is the simplest to implement, but not the most flexible.
+  - Static tree based on class hierarchies.
+  - Static tree based on directories and subdirectories.
+
+  Consider mixing all of them, if needed.
+  Difficulty: We do not want CGI endpoints by default, so we cannot match one-to-one an endpoint with a file.
+  (Which was really cunning when thinking about it).
+
+  TODO: Understand how the server works, if it could be possible to have a dynamic tree, which is generated at demand, and not at server startup.
+  */
+  recursiveMenuGeneration(rootUri, theRdfEndpoints, menuToRdf);
+  console.log(`generateMenu LEAVING serverHost: ${serverHost}, portNumber: ${portNumber}`);
   return store;
 }
 
@@ -84,26 +159,36 @@ function getHostPort(req) {
   return [serverHost, portNumber];
 }
 
-rdfEndpoints = {};
+/* This map can be filled several ways:
+- Hard-coded at server startup, with all endpoints. This is the simplest to implement, but not the most flexible.
+- Dynamically, based on class hierarchies.
+- Dynamically, based on directories and subdirectories.
+- Dynamically, based on the presence of files in a directory, which are not necessarily CGI endpoints, but which have an associated method to generate RDF data.
+*/
 
-rdfEndpoints["CIM_ComputerSystem"] = {
-  top: {
-    endPointComment : "Dummy endpoint to test RDF generation",
-    endPointMethod: (req) => {
-    [serverHost, portNumber] = getHostPort(req);
-    const store = minimalRdfContent(serverHost, portNumber);
-    return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
-  }
-  },
-  processes_list: {
-    endPointComment : "List of processes",
-    endPointMethod: async (req) => {
-    [serverHost, portNumber] = getHostPort(req);
-    const store = await fillProcessesList(serverHost, portNumber);
-    return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
-    }
-  }
-};
+rdfEndpoints = new Map();
+
+rdfEndpoints.set(
+  "CIM_ComputerSystem",
+  new Map(
+    [
+    ["top", {
+      endPointComment : "Dummy endpoint to test RDF generation",
+      endPointMethod: (req) => {
+      [serverHost, portNumber] = getHostPort(req);
+      const store = minimalRdfContent(serverHost, portNumber);
+      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+    }}
+    ],
+    ["processes_list", {
+      endPointComment : "List of processes",    
+      endPointMethod: async (req) => {
+      [serverHost, portNumber] = getHostPort(req);
+      const store = await fillProcessesList(serverHost, portNumber);
+      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+      }
+    }]
+  ]));
 
 app.get('/rdf', (req, res) => {
   res.set('Content-Type', 'text/turtle');
@@ -112,9 +197,48 @@ ex:subject ex:predicate ex:object .
 ex:another ex:rel ex:thing .`);
 });
 
+app.get('/menu/:className', (req, res, next) => {
+  rdfEndpoints.forEach((key, value) => {
+    console.log(`rdfEndpoints element: ${key}`, value);
+  });
+  console.log("================================");
+  console.log(`req.params.className = ${req.params.className}`);
+
+  const classEndPoints = rdfEndpoints.get(req.params.className);
+  if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
+
+  classEndPoints.forEach((key, value) => {
+    console.log(`classEndPoint element: ${key}`, value);
+  });
+  console.log("================================");
+
+  [serverHost, portNumber] = getHostPort(req);
+  const store = generateMenu(req.params.className, classEndPoints, serverHost, portNumber);
+  console.log("After generateMenu ================================");
+  console.log(`store: ${store}  ${typeof(store)}`);
+  console.log("After display ================================");
+  const rdfData = $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+
+  try {
+    res.set('Content-Type', 'application/rdf+xml');
+    res.send(rdfData);
+  } catch (err) {
+    console.error(`Error generating RDF for endpoint: ${endpoint}`, err);
+    res.status(500).send('Error generating RDF');
+  }
+});
+
+
+
 app.get('/classes/:className/:endPoint', async (req, res, next) => {
-  const endpoint = req.params.endPoint;
-  const generator = rdfEndpoints[req.params.className]?.[endpoint]?.endPointMethod;
+  const endPoint = req.params.endPoint;
+  const classEndPoints = rdfEndpoints[req.params.className];
+  if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
+
+  endPointObject = classEndPoints[req.params.endPoint];
+  if (!endPointObject) return res.status(404).send(`End point not found: ${req.params.endPoint}`);
+
+  const generator = endPointObject.endPointMethod;
   if (!generator) return next();
   try {
     const rdfData = await generator(req);
