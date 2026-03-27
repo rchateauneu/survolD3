@@ -57,3 +57,42 @@ text.CIM_Process {
 .CIM_DiskPartition {
   fill: lightblue;
 }
+
+#context-menu {
+  position: absolute;
+  display: none;
+  background: white;
+  border: 1px solid #000;
+  padding: 0;
+  z-index: 2000;
+  font-size: 13px;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+}
+
+#context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 5px;
+}
+
+#context-menu li {
+  padding: 4px 12px;
+}
+
+#context-menu li.leaf:hover {
+  background: #e0e0e0;
+  cursor: pointer;
+  color: blue;
+}
+
+#context-menu .menu-label {
+  font-weight: bold;
+  display: block;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 2px;
+}
+
+#context-menu .submenu {
+  margin-left: 10px;
+  border-left: 1px solid #ddd;
+}

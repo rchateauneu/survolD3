@@ -91,6 +91,7 @@
     </div>
   </div>
   <div id="tooltip"></div>
+  <div id="context-menu"></div>
 
   <script>
     const graphDiv = document.getElementById('graph');
@@ -142,6 +143,7 @@
     resizeGraph();
 
     const tooltip = d3.select("#tooltip");
+    const contextMenu = d3.select("#context-menu");
     const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
     const urlsPanel = document.getElementById('urls');
     const loadTopBtn = document.getElementById('loadTopBtn');
@@ -154,10 +156,72 @@
     let link;
     let labels;
 
+    // Hard-coded hierarchical menu
+    const staticMenu = [
+      {
+        label: "Node Actions",
+        children: [
+          { label: "View Details", url: "http://internal/actions/details" },
+          { label: "Trace Lineage", url: "http://internal/actions/trace" }
+        ]
+      },
+      {
+        label: "Global Tools",
+        children: [
+          { label: "Export RDF", url: "http://internal/tools/export" },
+          { label: "Clear Cache", url: "http://internal/tools/clear" }
+        ]
+      },
+      { label: "Help Documentation", url: "http://internal/docs/help" }
+    ];
+
     function toggleSidebar() {
       urlsPanel.classList.toggle('collapsed');
       // allow layout to update before recalculating center
       setTimeout(resizeGraph, 50);
+    }
+
+    function menuAction(d, url) {
+      const name = d ? (d.displayLabel || d.id) : "the background";
+      alert(`Action triggered!\nObject: ${name}\nURL: ${url}`);
+    }
+
+    function hideMenu() {
+      contextMenu.style("display", "none");
+    }
+
+    function renderMenu(container, items, clickedObject) {
+      const ul = container.append("ul");
+      items.forEach(item => {
+        const li = ul.append("li");
+        if (item.children) {
+          li.append("span").attr("class", "menu-label").text(item.label);
+          const submenu = li.append("div").attr("class", "submenu");
+          renderMenu(submenu, item.children, clickedObject);
+        } else {
+          // Leaf node with a URL
+          li.attr("class", "leaf")
+            .text(item.label)
+            .on("click", (event) => {
+              event.stopPropagation();
+              menuAction(clickedObject, item.url);
+              hideMenu();
+            });
+        }
+      });
+    }
+
+    function showContextMenu(event, d) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      contextMenu.selectAll("*").remove();
+      contextMenu
+        .style("display", "block")
+        .style("left", (event.pageX) + "px")
+        .style("top", (event.pageY) + "px");
+      
+      renderMenu(contextMenu, staticMenu, d);
     }
 
     toggleSidebarBtn.addEventListener('click', toggleSidebar);
@@ -166,6 +230,25 @@
     loadTopBtn.textContent = window.location.hostname || 'top';
     loadTopBtn.addEventListener('click', loadTopRDF);
     loadProcessesBtn.addEventListener('click', loadProcessesRDF);
+
+    // Frame right-click handler
+    svg.on("contextmenu", function(event) {
+      const target = d3.select(event.target);
+      let d = target.datum();
+      
+      // If we didn't click a node or a label, treat as background (null)
+      if (!d || !d.id) {
+        d = null;
+      }
+      showContextMenu(event, d);
+    });
+
+    // Close menu when clicking outside
+    window.addEventListener('mousedown', (e) => {
+      if (!document.getElementById('context-menu').contains(e.target)) {
+        hideMenu();
+      }
+    });
 
     async function loadTopRDF() {
       try {
@@ -190,6 +273,13 @@
     function loadRDFText(data, contentType, sourceLabel) {
       const store = globalStore;
       try {
+        /*
+        TODO: Set a proper URI for the resource, which will be used as the named graph in rdflib.
+        body - the RDF statements (content to be parsed)
+        store - the graph/store object where the RDF should be parsed to
+        uri - the URI of the resource (named graph)
+        mimeType - the mime type corresponding to the data that needs to be parsed
+        */
         $rdf.parse(data, store, 'http://example.org/', contentType);
         console.log('Parsed, store now has', store.statements.length, 'statements');
         updateGraph(store);
