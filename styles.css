@@ -58,6 +58,41 @@ text.CIM_Process {
   fill: lightblue;
 }
 
+#tooltip {
+  position: absolute;
+  display: none;
+  background: white;
+  border: 1px solid #000;
+  padding: 0;
+  z-index: 2000;
+  font-size: 13px;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+
+.tooltip-table {
+  border-collapse: collapse;
+  min-width: 180px;
+}
+
+.tooltip-table th {
+  background: #f0f0f0;
+  padding: 4px 12px;
+  text-align: center;
+  border-bottom: 1px solid #ccc;
+  font-weight: bold;
+}
+
+.tooltip-table td {
+  padding: 4px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.tooltip-table .predicate {
+  font-weight: bold;
+  color: #555;
+}
+
 #context-menu {
   position: absolute;
   display: none;

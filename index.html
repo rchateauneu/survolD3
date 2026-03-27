@@ -55,16 +55,6 @@
       min-width: 0;
       overflow: hidden;
     }
-
-    #tooltip {
-      position: absolute;
-      display: none;
-      background: white;
-      border: 1px solid black;
-      padding: 5px;
-      z-index: 1000;
-      pointer-events: none;
-    }
   </style>
 </head>
 <body>
@@ -333,13 +323,13 @@
     }
 
     function generateTable(itemClass, literals) {
-      let html = `<table border='1'><tr><th colspan=2>${itemClass}</th></tr>`;
+      let html = `<table class="tooltip-table"><thead><tr><th colspan="2">${itemClass}</th></tr></thead><tbody>`;
       // This is done at each display, but the number of literals is usually small and it ensures consistent ordering.
       literals.sort((a, b) => a.predicate.localeCompare(b.predicate));
       literals.forEach(l => {
-        html += `<tr><td>${l.predicate}</td><td>${l.value}</td></tr>`;
+        html += `<tr><td class="predicate">${l.predicate}</td><td>${l.value}</td></tr>`;
       });
-      html += "</table>";
+      html += "</tbody></table>";
       return html;
     }
 
