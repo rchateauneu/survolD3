@@ -234,7 +234,7 @@
     });
 
     // Close menu when clicking outside
-    window.addEventListener('mousedown', (e) => {
+    document.addEventListener('click', (e) => {
       if (!document.getElementById('context-menu').contains(e.target)) {
         hideMenu();
       }
