@@ -14,6 +14,7 @@ const port = 8765;
 const LDT = $rdf.Namespace("http://www.primhillcomputers.com/survol#");
 const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
+const DCTERMS = $rdf.Namespace("http://purl.org/dc/terms/");
 
 function fillProcess(store, serverHost, portNumber, userName, parentPid, processName, processId) {
   const baseUrl = `http://${serverHost}:${portNumber}/Survol/survol/entity.py`;
@@ -71,6 +72,7 @@ function rdfRootNode(serverHost, portNumber) {
   return $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);;
 }
 
+// This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
 function minimalRdfContent(serverHost, portNumber) {
   const store = $rdf.graph();
   const subj = rdfRootNode(serverHost, portNumber);
@@ -114,13 +116,18 @@ function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
     console.log(`menuToRdf: ${value}, ${key}`);
     // Intermediate nodes are never seen on the interface.
     const nodeRootEndPoint = $rdf.namedNode(uriRootEndPoint);
+
+    // TODO: It should rather be a blank node.
+    const nodeSubEndPoint = $rdf.namedNode(uriRootEndPoint + "/__NODE__." + key);
+
+    store.add(nodeRootEndPoint, DCTERMS('hasPart'), $rdf.namedNode(nodeSubEndPoint));
+
     // When discovering the trees of menus, if one node has no seeAlso, then it is an intermediate node.
     // Alternatively, we may choose to build the subnodes at demand, but this prevents to have a beautiful display of the menu tree.
-    store.add(nodeRootEndPoint, RDFS('label'), $rdf.literal(value.endPointComment));
+    store.add(nodeSubEndPoint, RDFS('label'), $rdf.literal(value.endPointComment));
     // Only clickable nodes which have an associate method.
-    const uriSubEndPoint = uriRootEndPoint + "/" + key;
-    const nodeSubEndPoint = $rdf.namedNode(uriSubEndPoint);
-    store.add(nodeRootEndPoint, RDFS('seeAlso'), $rdf.namedNode(nodeSubEndPoint));
+    const nodeRdf = $rdf.namedNode(uriRootEndPoint + "/" + key);
+    store.add(nodeSubEndPoint, RDFS('seeAlso'), $rdf.namedNode(nodeRdf));
     console.log(`menuToRdf leaving: ${value}, ${key}`);
   }
 
