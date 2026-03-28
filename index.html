@@ -181,6 +181,7 @@
     }
 
     function renderMenu(container, items, clickedObject) {
+      console.log('Processing node');
       const ul = container.append("ul");
       items.forEach(item => {
         const li = ul.append("li");
@@ -201,7 +202,65 @@
       });
     }
 
-    function showContextMenu(event, d) {
+    // TODO: Factorise this.
+    async function loadMenu(urlMenu) {
+      try {
+        const resp = await fetch(urlMenu);
+        const data = await resp.text();
+
+        let menuStore = $rdf.graph();
+        $rdf.parse(data, menuStore, 'http://example.org/', 'application/rdf+xml');
+        console.log('Parsed menu, menuStore now has', menuStore.statements.length, 'statements');
+        return menuStore;
+      } catch (err) {
+        console.error('Failed to load /top', err);
+        return null;
+      }
+    }
+
+    const DCT = $rdf.Namespace("http://purl.org/dc/terms/");
+    const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
+
+function seeAlsoToMenu(store, baseUri) {
+    // Base URI is required by rdflib to resolve relative internal references like "/menu/..."
+    
+    function buildHierarchy(node) {
+        const labelNode = store.any(node, RDFS('label'));
+        // The user requested dct:seeAlso. We check both DCT and RDFS namespaces for robustness.
+        const seeAlsoNode = store.any(node, DCT('seeAlso')) || store.any(node, RDFS('seeAlso'));
+        const childrenNodes = store.each(node, DCT('hasPart'));
+
+        // Use label from RDF, or fallback to a shortened version of the URI value
+        const label = labelNode ? labelNode.value : node.value.replace(baseUri, '');
+        const item = { label: label };
+
+        if (seeAlsoNode) {
+            item.url = seeAlsoNode.value;
+        }
+
+        if (childrenNodes.length > 0) {
+            item.children = childrenNodes.map(child => buildHierarchy(child));
+        }
+
+        return item;
+    }
+
+    // Root detection: Find nodes that have parts but are not parts themselves.
+    const subjectsWithParts = store.each(undefined, DCT('hasPart'), undefined);
+    const uniqueSubjects = [...new Set(subjectsWithParts.map(s => s.value))];
+    
+    const roots = uniqueSubjects.filter(uri => {
+        const node = $rdf.namedNode(uri);
+        return !store.any(undefined, DCT('hasPart'), node);
+    });
+
+    // Map each root to its hierarchy. 
+    // If the top-level node is just a container (no label/url), we could return its children instead.
+    return roots.map(rootUri => buildHierarchy($rdf.namedNode(rootUri)));
+}
+
+
+    async function showContextMenu(event, d) {
       event.preventDefault();
       event.stopPropagation();
       
@@ -210,8 +269,19 @@
         .style("display", "block")
         .style("left", (event.pageX) + "px")
         .style("top", (event.pageY) + "px");
-      
-      renderMenu(contextMenu, staticMenu, d);
+      if(d) {
+        // Show the hard-coded node actions menu
+        renderMenu(contextMenu, staticMenu, d);
+      } else {
+        // Background click: fetch the dynamic menu from the server
+        const urlMenu = window.location.origin + "/menu/CIM_ComputerSystem";
+        console.log('urlMenu', urlMenu);
+        const menuStore = await loadMenu(urlMenu);
+        if (menuStore) {
+          const dynamicMenu = seeAlsoToMenu(menuStore, urlMenu);
+          renderMenu(contextMenu, dynamicMenu, null);
+        }
+      }
     }
 
     toggleSidebarBtn.addEventListener('click', toggleSidebar);
@@ -240,6 +310,7 @@
       }
     });
 
+    // TODO Factorise the common code with loadProcessesRDF
     async function loadTopRDF() {
       try {
         const resp = await fetch('/classes/CIM_ComputerSystem/top');
@@ -523,7 +594,7 @@
       // Group nodes by shape
       const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [], chamfered: [] };
       graph.nodes.forEach(node => {
-        console.log('Processing node:', node.id, 'with class:', node.itemClass);
+        console.log('updateGraph Processing node:', node.id, 'with class:', node.itemClass);
         const shape = getShape(node.itemClass);
         nodesByShape[shape].push(node);
       });
