@@ -69,6 +69,8 @@
       <label for="linkDistanceRange" style="margin: 0; font-size: 0.9rem;">Node spacing</label>
       <input id="linkDistanceRange" type="range" min="20" max="500" value="80" step="1" style="width: 140px;">
       <span id="linkDistanceValue" style="width: 36px; text-align: right; font-size: 0.9rem;">80</span>
+      <input type="checkbox" id="collisionCheckbox" style="margin-left: 8px;">
+      <label for="collisionCheckbox" style="font-size: 0.9rem;">Collision</label>
     </div>
 
     <button id="toggleSidebarBtn" title="Toggle file list">☰</button>
@@ -119,6 +121,16 @@
 
     distanceSlider.addEventListener('input', event => {
       updateLinkDistance(event.target.value);
+    });
+
+    const collisionCheckbox = document.getElementById('collisionCheckbox');
+    collisionCheckbox.addEventListener('change', () => {
+      if (collisionCheckbox.checked) {
+        simulation.force("collision", d3.forceCollide().radius(d => (d.width ? d.width / 2 + 10 : 30)));
+      } else {
+        simulation.force("collision", null);
+      }
+      simulation.alpha(0.3).restart();
     });
 
     function resizeGraph() {
