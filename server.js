@@ -4,11 +4,13 @@ const $rdf = require('rdflib');
 const si = require('systeminformation');
 const fs = require('fs');
 const open = require('open');
+const os = require('os');
 
 const app = express();
 app.use(cors());
 app.use(express.static('.'));
 
+const hostname = os.hostname();
 const port = 8765;
 
 const LDT = $rdf.Namespace("http://www.primhillcomputers.com/survol#");
@@ -16,24 +18,33 @@ const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
 const DCTERMS = $rdf.Namespace("http://purl.org/dc/terms/");
 
-function fillProcess(store, serverHost, portNumber, userName, parentPid, processName, processId) {
-  const baseUrl = `http://${serverHost}:${portNumber}/Survol/survol/entity.py`;
 
-  const processUri = `${baseUrl}?xid=CIM_Process.Handle=${processId}`;
+function createMoniker(windowOrigin, className, objKeyValues) {
+  const keyValuePairs = Object.entries(objKeyValues).map(([key, value]) => `${key}=${value}`);
+  const moniker = `${windowOrigin}/Survol/survol/entity.py?xid=${className}.${keyValuePairs.join(',')}`;
+  return moniker;
+}
+
+function fillProcess(store, windowOrigin, userName, parentPid, processName, processId) {
+  //const processUri = `${baseUrl}?xid=CIM_Process.Handle=${processId}`;
+  const processUri = createMoniker(windowOrigin, 'CIM_Process', { Handle: processId });
   const processNode = $rdf.namedNode(processUri);
 
   // <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
   store.add(processNode, RDF('type'), LDT('CIM_Process'));
 
   // <ldt:account rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=LMI_Account.Name=<USER_NAME>,Domain=<SERVER_HOST>"/>
-  const accountUri = `${baseUrl}?xid=LMI_Account.Name=${userName},Domain=${serverHost}`;
+  if (userName == '') {
+    userName = 'undefined_user';
+  }
+  const accountUri = createMoniker(windowOrigin, 'LMI_Account', { Name: userName, Domain: hostname });
   store.add(processNode, LDT('account'), $rdf.namedNode(accountUri));
 
   // <ldt:Handle>24</ldt:Handle> -> Using PID.
   store.add(processNode, LDT('Handle'), $rdf.literal(String(processId)));
 
   // <ldt:ppid rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=CIM_Process.Handle=<PARENT_PID>"/>
-  const parentProcessUri = `${baseUrl}?xid=CIM_Process.Handle=${parentPid}`;
+  const parentProcessUri = createMoniker(windowOrigin, 'CIM_Process', { Handle: parentPid });
   store.add(processNode, LDT('ppid'), $rdf.namedNode(parentProcessUri));
 
   // <rdfs:label><PROCESS_NAME></rdfs:label>
@@ -43,17 +54,43 @@ function fillProcess(store, serverHost, portNumber, userName, parentPid, process
   store.add(processNode, LDT('pid'), $rdf.literal(String(processId)));
 }
 
+
+/*
+Processing process  {
+  pid: 40248,
+  parentPid: 19208,
+  name: 'conhost.exe',
+  cpu: 2.3296815970345689e-7,
+  cpuu: 2.3296815970345689e-7,
+  cpus: 0,
+  mem: 0.04985641110990076,
+  priority: 8,
+  memVsz: 2848,
+  memRss: 8220,
+  nice: 0,
+  started: '2026-03-29 17:43:43',
+  state: 'unknown',
+  tty: '',
+  user: '',
+  command: '\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4',
+  path: 'C:\\WINDOWS\\system32\\conhost.exe',
+  params: ''
+}
+*/
 async function fillProcessesList(serverHost, portNumber) {
   const store = $rdf.graph();
+  const windowOrigin = `http://${serverHost}:${portNumber}`;
+
   detectedProcesses = new Set();
   detectedParents = new Set();
 
   try {
     const data = await si.processes();
     data.list.forEach(p => {
+      console.log(`Processing process `, p);
       detectedProcesses.add(p.pid);
       detectedParents.add(p.parentPid);
-      fillProcess(store, serverHost, portNumber, p.user, p.parentPid, p.name, p.pid);
+      fillProcess(store, windowOrigin, p.user, p.parentPid, p.name, p.pid);
     });
   } catch (error) {
     console.error("Error getting process list:", error);
@@ -61,25 +98,28 @@ async function fillProcessesList(serverHost, portNumber) {
   undefinedProcs = new Set([...detectedParents].filter(x => !detectedProcesses.has(x)));
   undefinedProcs.forEach(pid => {
     console.warn(`Parent PID ${pid} not found in process list. Adding placeholder node.`);
-    fillProcess(store, serverHost, portNumber, 'unknown', 'unknown', `Unknown Process ${pid}`, pid);
+    fillProcess(store, windowOrigin, 'unknown_user', 'unknown_parent_pid', `Unknown Process ${pid}`, pid);
   });
   console.log(`Leaving with ${detectedProcesses.size} processes and ${undefinedProcs.size} undefined parent processes.`);
   return store;
 }
 
 
-function rdfRootNode(serverHost, portNumber) {
-  return $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);;
-}
+//function rdfRootNode(serverHost, portNumber) {
+//  return $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);
+//}
 
 // This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
 function minimalRdfContent(serverHost, portNumber) {
   const store = $rdf.graph();
-  const subj = rdfRootNode(serverHost, portNumber);
+  const windowOrigin = `http://${serverHost}:${portNumber}`;
+  const uriHostname = createMoniker(windowOrigin, 'CIM_ComputerSystem', { Name: serverHost });
+  const nodeHostname = $rdf.namedNode(uriHostname);
+  //const subj = rdfRootNode(serverHost, portNumber);
 
-  store.add(subj, RDFS('label'), $rdf.literal(serverHost));
-  store.add(subj, LDT('Name'), $rdf.literal(serverHost));
-  store.add(subj, RDF('type'), LDT('CIM_ComputerSystem'));
+  store.add(nodeHostname, RDFS('label'), $rdf.literal(serverHost));
+  store.add(nodeHostname, LDT('Name'), $rdf.literal(serverHost));
+  store.add(nodeHostname, RDF('type'), LDT('CIM_ComputerSystem'));
   return store;
 }
 
@@ -134,7 +174,7 @@ function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
     console.log(`menuToRdf leaving: ${value}, ${key}`);
   }
 
-  const rootUri = `http://${serverHost}:${port}/classes/${className}`;
+  const rootUri = `http://${serverHost}:${portNumber}/classes/${className}`;
   // TODO: This might receive the definition of an object and will return its endpoints.
   // Depending on this, the starting point of the menu generation is not rdfEndpoints,
   // but has the same structure.
@@ -171,7 +211,7 @@ rdfEndpoints.set(
       endPointMethod: (req) => {
       [serverHost, portNumber] = getHostPort(req);
       const store = minimalRdfContent(serverHost, portNumber);
-      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
+      return store;
     }}
     ],
     ["processes_list", {
@@ -179,7 +219,7 @@ rdfEndpoints.set(
       endPointMethod: async (req) => {
       [serverHost, portNumber] = getHostPort(req);
       const store = await fillProcessesList(serverHost, portNumber);
-      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
+      return store;
       }
     }]
   ]));
@@ -236,11 +276,14 @@ app.get('/classes/:className/:endPoint', async (req, res, next) => {
   const generator = endPointObject.endPointMethod;
   if (!generator) return next();
   try {
-    const rdfData = await generator(req);
+    const rdfStore = await generator(req);
+    [serverHost, portNumber] = getHostPort(req);
+    const rdfData = $rdf.serialize(null, rdfStore, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
+
     res.set('Content-Type', 'application/rdf+xml');
     res.send(rdfData);
   } catch (err) {
-    console.error(`Error generating RDF for endpoint: ${endpoint}`, err);
+    console.error(`Error generating RDF for endpoint: ${endPoint}`, err);
     res.status(500).send('Error generating RDF');
   }
 });
