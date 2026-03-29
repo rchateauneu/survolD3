@@ -5,6 +5,8 @@ const si = require('systeminformation');
 const fs = require('fs');
 const open = require('open');
 const os = require('os');
+const { createMoniker, LDT, RDF, RDFS } = require('./utils');
+const { generateMenu } = require('./menus');
 
 const app = express();
 app.use(cors());
@@ -13,17 +15,6 @@ app.use(express.static('.'));
 const hostname = os.hostname();
 const port = 8765;
 
-const LDT = $rdf.Namespace("http://www.primhillcomputers.com/survol#");
-const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
-const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
-const DCTERMS = $rdf.Namespace("http://purl.org/dc/terms/");
-
-
-function createMoniker(windowOrigin, className, objKeyValues) {
-  const keyValuePairs = Object.entries(objKeyValues).map(([key, value]) => `${key}=${value}`);
-  const moniker = `${windowOrigin}/Survol/survol/entity.py?xid=${className}.${keyValuePairs.join(',')}`;
-  return moniker;
-}
 
 function fillProcess(store, windowOrigin, userName, parentPid, processName, processId) {
   //const processUri = `${baseUrl}?xid=CIM_Process.Handle=${processId}`;
@@ -87,7 +78,7 @@ async function fillProcessesList(serverHost, portNumber) {
   try {
     const data = await si.processes();
     data.list.forEach(p => {
-      console.log(`Processing process `, p);
+      //console.log(`Processing process `, p);
       detectedProcesses.add(p.pid);
       detectedParents.add(p.parentPid);
       fillProcess(store, windowOrigin, p.user, p.parentPid, p.name, p.pid);
@@ -104,83 +95,16 @@ async function fillProcessesList(serverHost, portNumber) {
   return store;
 }
 
-
-//function rdfRootNode(serverHost, portNumber) {
-//  return $rdf.namedNode(`http://${serverHost}:${port}/Survol/survol/entity.py?xid=CIM_ComputerSystem.Name=${serverHost}`);
-//}
-
 // This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
 function minimalRdfContent(serverHost, portNumber) {
   const store = $rdf.graph();
   const windowOrigin = `http://${serverHost}:${portNumber}`;
   const uriHostname = createMoniker(windowOrigin, 'CIM_ComputerSystem', { Name: serverHost });
   const nodeHostname = $rdf.namedNode(uriHostname);
-  //const subj = rdfRootNode(serverHost, portNumber);
 
   store.add(nodeHostname, RDFS('label'), $rdf.literal(serverHost));
   store.add(nodeHostname, LDT('Name'), $rdf.literal(serverHost));
   store.add(nodeHostname, RDF('type'), LDT('CIM_ComputerSystem'));
-  return store;
-}
-
-function recursiveMenuGeneration(store, menuLabel, uriRootEndPoint, theEndPoints, menuToRdfCallback) {
-  console.log(`recursiveMenuGeneration uriRootEndPoint: ${uriRootEndPoint}`);
-  store.add(uriRootEndPoint, RDFS('label'), $rdf.literal(menuLabel));
-  theEndPoints.forEach((value, key) => {
-    console.log(`recursiveMenuGeneration for ${key}: ${value}`);
-  });
-  function callback(value, key, map) {
-    console.log(`callback: ${value}, ${key}`);
-    if (value.endPointComment != undefined && value.endPointComment != undefined) {
-      console.log(`Final menu node: ${key}`);
-      menuToRdfCallback(uriRootEndPoint, key, value);
-    } else {
-      // This is an intermediate node,
-      console.log(`Intermediate menu node: ${key}`);
-      const uriSubEndPoint = uriRootEndPoint + "/" + key;
-      recursiveMenuGeneration(store, key, uriSubEndPoint, value, menuToRdfCallback);
-    }
-  };
-  console.log(`theEndPoints: ${theEndPoints}`);
-  theEndPoints.forEach(callback);
-}
-
-function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
-  console.log(`generateMenu serverHost: ${serverHost}, portNumber: ${portNumber}`);
-  console.log(`generateMenu theRdfEndpoints: ${theRdfEndpoints}`);
-  theRdfEndpoints.forEach((value, key) => {
-    console.log(`generateMenu for ${key}: ${value}`);
-  });
-  const store = $rdf.graph();
-
-  function menuToRdf(uriRootEndPoint, key, value) {
-    console.log(`menuToRdf: ${value}, ${key} uriRootEndPoint: ${uriRootEndPoint}`);
-    // Intermediate nodes are never seen on the interface.
-    const nodeRootEndPoint = $rdf.namedNode(uriRootEndPoint);
-
-    // TODO: It should rather be a blank node.
-    const nodeSubEndPoint = $rdf.namedNode(uriRootEndPoint + "/__NODE__." + key);
-
-    store.add(nodeRootEndPoint, DCTERMS('hasPart'), $rdf.namedNode(nodeSubEndPoint));
-
-    // When discovering the trees of menus, if one node has no seeAlso, then it is an intermediate node.
-    // Alternatively, we may choose to build the subnodes at demand, but this prevents to have a beautiful display of the menu tree.
-    store.add(nodeSubEndPoint, RDFS('label'), $rdf.literal(value.endPointComment));
-    // Only clickable nodes which have an associate method.
-    const uriRdf = uriRootEndPoint + "/" + key;
-    console.log(`menuToRdf uriRdf: ${uriRdf}`);
-    const nodeRdf = $rdf.namedNode(uriRdf);
-    store.add(nodeSubEndPoint, RDFS('seeAlso'), $rdf.namedNode(nodeRdf));
-    console.log(`menuToRdf leaving: ${value}, ${key}`);
-  }
-
-  const rootUri = `http://${serverHost}:${portNumber}/classes/${className}`;
-  // TODO: This might receive the definition of an object and will return its endpoints.
-  // Depending on this, the starting point of the menu generation is not rdfEndpoints,
-  // but has the same structure.
-
-  recursiveMenuGeneration(store, className, rootUri, theRdfEndpoints, menuToRdf);
-  console.log(`generateMenu LEAVING serverHost: ${serverHost}, portNumber: ${portNumber}`);
   return store;
 }
 
