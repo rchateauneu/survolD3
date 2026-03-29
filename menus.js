@@ -35,9 +35,10 @@ function recursiveMenuGeneration(store, menuLabel, uriRootEndPoint, theEndPoints
 /**
  * Generates an RDF graph representing the menu for a given class.
  */
-function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
+function generateMenu(className, theRdfEndpoints, windowOrigin) {
   const menuStore = $rdf.graph();
-  const rootUri = `http://${serverHost}:${portNumber}/classes/${className}`;
+  console.log("Generating menu for class:", className, "windowOrigin:", windowOrigin);
+  const rootUri = windowOrigin + `/classes/${className}`;
 
   recursiveMenuGeneration(menuStore, className, rootUri, theRdfEndpoints);
 

@@ -16,6 +16,29 @@ const hostname = os.hostname();
 const port = 8765;
 
 
+
+/*
+Processing process  {
+  pid: 40248,
+  parentPid: 19208,
+  name: 'conhost.exe',
+  cpu: 2.3296815970345689e-7,
+  cpuu: 2.3296815970345689e-7,
+  cpus: 0,
+  mem: 0.04985641110990076,
+  priority: 8,
+  memVsz: 2848,
+  memRss: 8220,
+  nice: 0,
+  started: '2026-03-29 17:43:43',
+  state: 'unknown',
+  tty: '',
+  user: '',
+  command: '\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4',
+  path: 'C:\\WINDOWS\\system32\\conhost.exe',
+  params: ''
+}
+*/
 function fillProcess(store, windowOrigin, userName, parentPid, processName, processId) {
   //const processUri = `${baseUrl}?xid=CIM_Process.Handle=${processId}`;
   const processUri = createMoniker(windowOrigin, 'CIM_Process', { Handle: processId });
@@ -45,32 +68,8 @@ function fillProcess(store, windowOrigin, userName, parentPid, processName, proc
   store.add(processNode, LDT('pid'), $rdf.literal(String(processId)));
 }
 
-
-/*
-Processing process  {
-  pid: 40248,
-  parentPid: 19208,
-  name: 'conhost.exe',
-  cpu: 2.3296815970345689e-7,
-  cpuu: 2.3296815970345689e-7,
-  cpus: 0,
-  mem: 0.04985641110990076,
-  priority: 8,
-  memVsz: 2848,
-  memRss: 8220,
-  nice: 0,
-  started: '2026-03-29 17:43:43',
-  state: 'unknown',
-  tty: '',
-  user: '',
-  command: '\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4',
-  path: 'C:\\WINDOWS\\system32\\conhost.exe',
-  params: ''
-}
-*/
-async function fillProcessesList(serverHost, portNumber) {
+async function fillProcessesList(windowOrigin) {
   const store = $rdf.graph();
-  const windowOrigin = `http://${serverHost}:${portNumber}`;
 
   detectedProcesses = new Set();
   detectedParents = new Set();
@@ -78,7 +77,6 @@ async function fillProcessesList(serverHost, portNumber) {
   try {
     const data = await si.processes();
     data.list.forEach(p => {
-      //console.log(`Processing process `, p);
       detectedProcesses.add(p.pid);
       detectedParents.add(p.parentPid);
       fillProcess(store, windowOrigin, p.user, p.parentPid, p.name, p.pid);
@@ -96,9 +94,8 @@ async function fillProcessesList(serverHost, portNumber) {
 }
 
 // This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
-function minimalRdfContent(serverHost, portNumber) {
+function minimalRdfContent(windowOrigin) {
   const store = $rdf.graph();
-  const windowOrigin = `http://${serverHost}:${portNumber}`;
   const uriHostname = createMoniker(windowOrigin, 'CIM_ComputerSystem', { Name: serverHost });
   const nodeHostname = $rdf.namedNode(uriHostname);
 
@@ -114,6 +111,24 @@ function getHostPort(req) {
   const portNumber = maybePort || port;
   const serverHost = host || 'localhost';
   return [serverHost, portNumber];
+}
+
+function refToWindowOrigin(req) {
+      [serverHost, portNumber] = getHostPort(req);
+      const windowOrigin = `http://${serverHost}:${portNumber}`;
+      console.log(`Computed windowOrigin: ${windowOrigin} from serverHost: ${serverHost} and portNumber: ${portNumber}`);
+      return windowOrigin;
+}
+
+function serializeRdfStore(res, rdfStore, windowOrigin) {
+  try {
+    const rdfData = $rdf.serialize(null, rdfStore, windowOrigin, 'application/rdf+xml');
+    res.set('Content-Type', 'application/rdf+xml');
+    res.send(rdfData);
+  } catch (err) {
+    console.error(`Error generating RDF for windowOrigin: ${windowOrigin}`, err);
+    res.status(500).send('Error generating RDF');
+  }
 }
 
 /* This map can be filled several ways:
@@ -132,28 +147,19 @@ rdfEndpoints.set(
     [
     ["top", {
       endPointComment : "Dummy endpoint to test RDF generation",
-      endPointMethod: (req) => {
-      [serverHost, portNumber] = getHostPort(req);
-      const store = minimalRdfContent(serverHost, portNumber);
+      endPointMethod: (windowOrigin) => {
+      const store = minimalRdfContent(windowOrigin);
       return store;
     }}
     ],
     ["processes_list", {
       endPointComment : "List of processes",    
-      endPointMethod: async (req) => {
-      [serverHost, portNumber] = getHostPort(req);
-      const store = await fillProcessesList(serverHost, portNumber);
+      endPointMethod: async (windowOrigin) => {
+      const store = await fillProcessesList(windowOrigin);
       return store;
       }
     }]
   ]));
-
-app.get('/rdf', (req, res) => {
-  res.set('Content-Type', 'text/turtle');
-  res.send(`@prefix ex: <http://example.org/> .
-ex:subject ex:predicate ex:object .
-ex:another ex:rel ex:thing .`);
-});
 
 app.get('/menu/:className', (req, res, next) => {
   console.log(`Received menu request for class: ${req.params.className}`);
@@ -170,23 +176,10 @@ app.get('/menu/:className', (req, res, next) => {
   });
   console.log("================================");
 
-  [serverHost, portNumber] = getHostPort(req);
-  const store = generateMenu(req.params.className, classEndPoints, serverHost, portNumber);
-  console.log("After generateMenu ================================");
-  console.log(`${store}`);
-  console.log("After display ================================");
-  const rdfData = $rdf.serialize(null, store, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
-
-  try {
-    res.set('Content-Type', 'application/rdf+xml');
-    res.send(rdfData);
-  } catch (err) {
-    console.error(`Error generating RDF for endpoint: ${endpoint}`, err);
-    res.status(500).send('Error generating RDF');
-  }
+  const windowOrigin = refToWindowOrigin(req);
+  const rdfStore = generateMenu(req.params.className, classEndPoints, windowOrigin);
+  serializeRdfStore(res, rdfStore, windowOrigin);
 });
-
-
 
 app.get('/classes/:className/:endPoint', async (req, res, next) => {
   const endPoint = req.params.endPoint;
@@ -199,17 +192,9 @@ app.get('/classes/:className/:endPoint', async (req, res, next) => {
 
   const generator = endPointObject.endPointMethod;
   if (!generator) return next();
-  try {
-    const rdfStore = await generator(req);
-    [serverHost, portNumber] = getHostPort(req);
-    const rdfData = $rdf.serialize(null, rdfStore, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
-
-    res.set('Content-Type', 'application/rdf+xml');
-    res.send(rdfData);
-  } catch (err) {
-    console.error(`Error generating RDF for endpoint: ${endPoint}`, err);
-    res.status(500).send('Error generating RDF');
-  }
+  const windowOrigin = refToWindowOrigin(req);
+  const rdfStore = await generator(windowOrigin);
+  serializeRdfStore(res, rdfStore, windowOrigin);
 });
 
 app.listen(port, () => {
