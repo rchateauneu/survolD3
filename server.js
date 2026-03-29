@@ -83,8 +83,9 @@ function minimalRdfContent(serverHost, portNumber) {
   return store;
 }
 
-function recursiveMenuGeneration(uriRootEndPoint, theEndPoints, menuToRdfCallback) {
+function recursiveMenuGeneration(store, menuLabel, uriRootEndPoint, theEndPoints, menuToRdfCallback) {
   console.log(`recursiveMenuGeneration uriRootEndPoint: ${uriRootEndPoint}`);
+  store.add(uriRootEndPoint, RDFS('label'), $rdf.literal(menuLabel));
   theEndPoints.forEach((value, key) => {
     console.log(`recursiveMenuGeneration for ${key}: ${value}`);
   });
@@ -97,7 +98,7 @@ function recursiveMenuGeneration(uriRootEndPoint, theEndPoints, menuToRdfCallbac
       // This is an intermediate node,
       console.log(`Intermediate menu node: ${key}`);
       const uriSubEndPoint = uriRootEndPoint + "/" + key;
-      recursiveMenuGeneration(uriSubEndPoint, value, menuToRdfCallback);
+      recursiveMenuGeneration(store, key, uriSubEndPoint, value, menuToRdfCallback);
     }
   };
   console.log(`theEndPoints: ${theEndPoints}`);
@@ -113,7 +114,7 @@ function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
   const store = $rdf.graph();
 
   function menuToRdf(uriRootEndPoint, key, value) {
-    console.log(`menuToRdf: ${value}, ${key}`);
+    console.log(`menuToRdf: ${value}, ${key} uriRootEndPoint: ${uriRootEndPoint}`);
     // Intermediate nodes are never seen on the interface.
     const nodeRootEndPoint = $rdf.namedNode(uriRootEndPoint);
 
@@ -126,17 +127,19 @@ function generateMenu(className, theRdfEndpoints, serverHost, portNumber) {
     // Alternatively, we may choose to build the subnodes at demand, but this prevents to have a beautiful display of the menu tree.
     store.add(nodeSubEndPoint, RDFS('label'), $rdf.literal(value.endPointComment));
     // Only clickable nodes which have an associate method.
-    const nodeRdf = $rdf.namedNode(uriRootEndPoint + "/" + key);
+    const uriRdf = uriRootEndPoint + "/" + key;
+    console.log(`menuToRdf uriRdf: ${uriRdf}`);
+    const nodeRdf = $rdf.namedNode(uriRdf);
     store.add(nodeSubEndPoint, RDFS('seeAlso'), $rdf.namedNode(nodeRdf));
     console.log(`menuToRdf leaving: ${value}, ${key}`);
   }
 
-  const rootUri = `http://${serverHost}:${port}/menu/${className}`;
+  const rootUri = `http://${serverHost}:${port}/classes/${className}`;
   // TODO: This might receive the definition of an object and will return its endpoints.
   // Depending on this, the starting point of the menu generation is not rdfEndpoints,
   // but has the same structure.
 
-  recursiveMenuGeneration(rootUri, theRdfEndpoints, menuToRdf);
+  recursiveMenuGeneration(store, className, rootUri, theRdfEndpoints, menuToRdf);
   console.log(`generateMenu LEAVING serverHost: ${serverHost}, portNumber: ${portNumber}`);
   return store;
 }
@@ -168,7 +171,7 @@ rdfEndpoints.set(
       endPointMethod: (req) => {
       [serverHost, portNumber] = getHostPort(req);
       const store = minimalRdfContent(serverHost, portNumber);
-      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
     }}
     ],
     ["processes_list", {
@@ -176,7 +179,7 @@ rdfEndpoints.set(
       endPointMethod: async (req) => {
       [serverHost, portNumber] = getHostPort(req);
       const store = await fillProcessesList(serverHost, portNumber);
-      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+      return $rdf.serialize(null, store, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
       }
     }]
   ]));
@@ -189,11 +192,11 @@ ex:another ex:rel ex:thing .`);
 });
 
 app.get('/menu/:className', (req, res, next) => {
+  console.log(`Received menu request for class: ${req.params.className}`);
   rdfEndpoints.forEach((value, key) => {
     console.log(`rdfEndpoints element: ${key}`, value);
   });
   console.log("================================");
-  console.log(`req.params.className = ${req.params.className}`);
 
   const classEndPoints = rdfEndpoints.get(req.params.className);
   if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
@@ -206,9 +209,9 @@ app.get('/menu/:className', (req, res, next) => {
   [serverHost, portNumber] = getHostPort(req);
   const store = generateMenu(req.params.className, classEndPoints, serverHost, portNumber);
   console.log("After generateMenu ================================");
-  console.log(`store: ${store}  ${typeof(store)}`);
+  console.log(`${store}`);
   console.log("After display ================================");
-  const rdfData = $rdf.serialize(null, store, `http://${serverHost}:${portNumber}/`, 'application/rdf+xml');
+  const rdfData = $rdf.serialize(null, store, `http://${serverHost}:${portNumber}`, 'application/rdf+xml');
 
   try {
     res.set('Content-Type', 'application/rdf+xml');
@@ -223,6 +226,7 @@ app.get('/menu/:className', (req, res, next) => {
 
 app.get('/classes/:className/:endPoint', async (req, res, next) => {
   const endPoint = req.params.endPoint;
+  console.log(`Received request for class: ${req.params.className}, endpoint: ${endPoint}`);
   const classEndPoints = rdfEndpoints.get(req.params.className);
   if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
 

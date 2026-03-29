@@ -173,7 +173,8 @@
 
     function menuAction(d, url) {
       const name = d ? (d.displayLabel || d.id) : "the background";
-      alert(`Action triggered!\nObject: ${name}\nURL: ${url}`);
+      console.log(`Action triggered!\nObject: ${name}\nURL: ${url}`);
+      loadAnyRDF(url);
     }
 
     function hideMenu() {
@@ -184,6 +185,7 @@
       console.log('Processing node');
       const ul = container.append("ul");
       items.forEach(item => {
+        console.log('Processing menu item:', item.label, item.url ? `(URL: ${item.url})` : '(no URL)', item.children ? '(has children)' : '(no children)' );
         const li = ul.append("li");
         if (item.children) {
           li.append("span").attr("class", "menu-label").text(item.label);
@@ -209,8 +211,12 @@
         const data = await resp.text();
 
         let menuStore = $rdf.graph();
-        $rdf.parse(data, menuStore, 'http://example.org/', 'application/rdf+xml');
+        console.log('Loading menu RDF from', urlMenu, ' window.location.origin:', window.location.origin);
+        $rdf.parse(data, menuStore, window.location.origin, 'application/rdf+xml');
         console.log('Parsed menu, menuStore now has', menuStore.statements.length, 'statements');
+        menuStore.statements.forEach(s => {
+          console.log('Menu RDF statement:', s.subject.value, s.predicate.value, s.object.value);
+        });
         return menuStore;
       } catch (err) {
         console.error('Failed to load /top', err);
@@ -221,10 +227,11 @@
     const DCT = $rdf.Namespace("http://purl.org/dc/terms/");
     const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
 
-function seeAlsoToMenu(store, baseUri) {
-    // Base URI is required by rdflib to resolve relative internal references like "/menu/..."
-    
-    function buildHierarchy(node) {
+    function seeAlsoToMenu(store, baseUri) {
+      console.log('seeAlsoToMenu: Building menu hierarchy from store with base URI:', baseUri);
+      // Base URI is required by rdflib to resolve relative internal references like "/menu/..."
+
+      function buildHierarchy(node) {
         const labelNode = store.any(node, RDFS('label'));
         // The user requested dct:seeAlso. We check both DCT and RDFS namespaces for robustness.
         const seeAlsoNode = store.any(node, DCT('seeAlso')) || store.any(node, RDFS('seeAlso'));
@@ -235,30 +242,30 @@ function seeAlsoToMenu(store, baseUri) {
         const item = { label: label };
 
         if (seeAlsoNode) {
-            item.url = seeAlsoNode.value;
+          console.log('Found seeAlso for', node.value, ':', seeAlsoNode.value);
+          item.url = seeAlsoNode.value;
         }
 
         if (childrenNodes.length > 0) {
-            item.children = childrenNodes.map(child => buildHierarchy(child));
+          item.children = childrenNodes.map(child => buildHierarchy(child));
         }
 
         return item;
+      }
+
+      // Root detection: Find nodes that have parts but are not parts themselves.
+      const subjectsWithParts = store.each(undefined, DCT('hasPart'), undefined);
+      const uniqueSubjects = [...new Set(subjectsWithParts.map(s => s.value))];
+      
+      const roots = uniqueSubjects.filter(uri => {
+          const node = $rdf.namedNode(uri);
+          return !store.any(undefined, DCT('hasPart'), node);
+      });
+
+      // Map each root to its hierarchy. 
+      // If the top-level node is just a container (no label/url), we could return its children instead.
+      return roots.map(rootUri => buildHierarchy($rdf.namedNode(rootUri)));
     }
-
-    // Root detection: Find nodes that have parts but are not parts themselves.
-    const subjectsWithParts = store.each(undefined, DCT('hasPart'), undefined);
-    const uniqueSubjects = [...new Set(subjectsWithParts.map(s => s.value))];
-    
-    const roots = uniqueSubjects.filter(uri => {
-        const node = $rdf.namedNode(uri);
-        return !store.any(undefined, DCT('hasPart'), node);
-    });
-
-    // Map each root to its hierarchy. 
-    // If the top-level node is just a container (no label/url), we could return its children instead.
-    return roots.map(rootUri => buildHierarchy($rdf.namedNode(rootUri)));
-}
-
 
     async function showContextMenu(event, d) {
       event.preventDefault();
@@ -278,8 +285,10 @@ function seeAlsoToMenu(store, baseUri) {
         console.log('urlMenu', urlMenu);
         const menuStore = await loadMenu(urlMenu);
         if (menuStore) {
-          const dynamicMenu = seeAlsoToMenu(menuStore, urlMenu);
+          const dynamicMenu = seeAlsoToMenu(menuStore, window.location.origin + "/classes/CIM_ComputerSystem");
           renderMenu(contextMenu, dynamicMenu, null);
+        } else {
+          console.error('Failed to load dynamic menu');
         }
       }
     }
@@ -310,25 +319,25 @@ function seeAlsoToMenu(store, baseUri) {
       }
     });
 
-    // TODO Factorise the common code with loadProcessesRDF
-    async function loadTopRDF() {
+    async function loadAnyRDF(uri) {
       try {
-        const resp = await fetch('/classes/CIM_ComputerSystem/top');
+        const resp = await fetch(uri);
         const data = await resp.text();
-        loadRDFText(data, 'application/rdf+xml', window.location.origin + '/top');
+        console.log('Loading RDF from', uri, 'with content type application/rdf+xml');
+        loadRDFText(data, 'application/rdf+xml', uri);
       } catch (err) {
-        console.error('Failed to load /top', err);
+        console.error('Failed to load ' + uri, err);
       }
     }
 
+
+    // TODO Factorise the common code with loadProcessesRDF
+    async function loadTopRDF() {
+      loadAnyRDF(window.location.origin + '/classes/CIM_ComputerSystem/top');
+    }
+
     async function loadProcessesRDF() {
-      try {
-        const resp = await fetch('/classes/CIM_ComputerSystem/processes_list');
-        const data = await resp.text();
-        loadRDFText(data, 'application/rdf+xml', window.location.origin + '/processes_list');
-      } catch (err) {
-        console.error('Failed to load /processes_list', err);
-      }
+      loadAnyRDF(window.location.origin + '/classes/CIM_ComputerSystem/processes_list');
     }
 
     function loadRDFText(data, contentType, sourceLabel) {
@@ -341,7 +350,7 @@ function seeAlsoToMenu(store, baseUri) {
         uri - the URI of the resource (named graph)
         mimeType - the mime type corresponding to the data that needs to be parsed
         */
-        $rdf.parse(data, store, 'http://example.org/', contentType);
+        $rdf.parse(data, store, window.location.origin, contentType);
         console.log('Parsed, store now has', store.statements.length, 'statements');
         updateGraph(store);
         if (sourceLabel) updateFileList(sourceLabel);
