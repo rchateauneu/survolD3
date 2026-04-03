@@ -25,11 +25,12 @@ async function runTest() {
 
     if (associators && associators.length > 0) {
       console.log(`[SUCCESS] Found ${associators.length} associated entities.`);
+      console.log(JSON.stringify(entityData, null, 2));
       
-      associators.forEach((assoc, index) => {
-        console.log(`  ${index + 1}. AssocClass: ${assoc.AssocClass}`);
-        console.log(`     Moniker:    ${assoc.Moniker}`);
-      });
+      //associators.forEach((assoc, index) => {
+      //  console.log(`  ${index + 1}. AssocClass: ${assoc.AssocClass}`);
+      //  console.log(`     Moniker:    ${assoc.Moniker}`);
+      //});
     } else {
       console.log('[INFO] No associated WMI entities found for the specified PID.');
     }

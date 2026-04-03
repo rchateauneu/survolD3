@@ -158,25 +158,6 @@
     let link;
     let labels;
 
-    // Hard-coded hierarchical menu
-    const staticMenu = [
-      {
-        label: "Node Actions",
-        children: [
-          { label: "View Details", url: "http://internal/actions/details" },
-          { label: "Trace Lineage", url: "http://internal/actions/trace" }
-        ]
-      },
-      {
-        label: "Global Tools",
-        children: [
-          { label: "Export RDF", url: "http://internal/tools/export" },
-          { label: "Clear Cache", url: "http://internal/tools/clear" }
-        ]
-      },
-      { label: "Help Documentation", url: "http://internal/docs/help" }
-    ];
-
     function toggleSidebar() {
       urlsPanel.classList.toggle('collapsed');
       // allow layout to update before recalculating center
@@ -184,8 +165,9 @@
     }
 
     function menuAction(d, url) {
-      const name = d ? (d.displayLabel || d.id) : "the background";
-      console.log(`Action triggered!\nObject: ${name}\nURL: ${url}`);
+      const name = d ? d.id : "the background";
+      console.log(`menuAction: Object: ${name}`);
+      console.log(`menuAction: URL: ${url}`);
       loadAnyRDF(url);
     }
 
@@ -193,8 +175,17 @@
       contextMenu.style("display", "none");
     }
 
+    // item.url = http://localhost:8765/objects/associators
+    // clickedObject.id = 'http://localhost:8765/Survol/survol/entity.py?xid=CIM_Process.Handle=1160'
+    function appendXidToMenuUrl(menuItemUrl, clickedObjectId) {
+      if(clickedObjectId == null) return menuItemUrl; // No clicked object, return the original URL
+      const moniker = getMonikerFromUrl(clickedObjectId);
+      const menuUrl = menuItemUrl + "/?xid=" + moniker;
+      return menuUrl;
+    }
+
     function renderMenu(container, items, clickedObject) {
-      console.log('Processing node');
+      console.log('renderMenu called with clickedObject:', clickedObject, 'and items:', items);
       const ul = container.append("ul");
       items.forEach(item => {
         console.log('Processing menu item:', item.label, item.url ? `(URL: ${item.url})` : '(no URL)', item.children ? '(has children)' : '(no children)' );
@@ -208,8 +199,14 @@
           li.attr("class", "leaf")
             .text(item.label)
             .on("click", (event) => {
+              // Where is p.id ?? It should be in the item.
+              console.log("Menu item clicked: ", item);
               event.stopPropagation();
-              menuAction(clickedObject, item.url);
+              // item.url = http://localhost:8765/objects/associators
+              // clickedObject.id = 'http://localhost:8765/Survol/survol/entity.py?xid=CIM_Process.Handle=1160'
+              const clickedObjectId = clickedObject ? clickedObject.id : null;
+              const menuUrl = appendXidToMenuUrl(item.url, clickedObjectId);
+              menuAction(clickedObject, menuUrl);
               hideMenu();
             });
         }
@@ -241,7 +238,7 @@
 
     function seeAlsoToMenu(store, baseUri) {
       console.log('seeAlsoToMenu: Building menu hierarchy from store with base URI:', baseUri);
-      // Base URI is required by rdflib to resolve relative internal references like "/menu/..."
+      // Base URI is required by rdflib to shorten relative internal references like "/menu/..."
 
       function buildHierarchy(node) {
         const labelNode = store.any(node, RDFS('label'));
@@ -290,14 +287,29 @@
         .style("top", (event.pageY) + "px");
       if(d) {
         // Show the hard-coded node actions menu
-        renderMenu(contextMenu, staticMenu, d);
-      } else {
-        // Background click: fetch the dynamic menu from the server
-        const urlMenu = window.location.origin + "/menu/CIM_ComputerSystem";
+
+        // Construire le moniker et fabriquer l'URL du menu.
+        const moniker = getMonikerFromUrl(d.id);
+        const className = getClassFromUrl(d.id);
+        console.log("showContextMenu for node:", d, " moniker:", moniker);
+
+        const urlMenu = window.location.origin + "/menu?xid=" + encodeURIComponent(moniker);
         console.log('urlMenu', urlMenu);
         const menuStore = await loadMenu(urlMenu);
         if (menuStore) {
-          const dynamicMenu = seeAlsoToMenu(menuStore, window.location.origin + "/classes/CIM_ComputerSystem");
+          const dynamicMenu = seeAlsoToMenu(menuStore, window.location.origin + "/objects");
+          renderMenu(contextMenu, dynamicMenu, d);
+        } else {
+          console.error('Failed to load dynamic menu');
+        }
+      } else {
+        // Background click: fetch the dynamic menu from the server
+        // const urlMenu = window.location.origin + "/menu/CIM_ComputerSystem";
+        const urlMenu = window.location.origin + "/menu?xid=";
+        console.log('urlMenu', urlMenu);
+        const menuStore = await loadMenu(urlMenu);
+        if (menuStore) {
+          const dynamicMenu = seeAlsoToMenu(menuStore, window.location.origin + "/objects");
           renderMenu(contextMenu, dynamicMenu, null);
         } else {
           console.error('Failed to load dynamic menu');
@@ -345,11 +357,11 @@
 
     // TODO Factorise the common code with loadProcessesRDF
     async function loadTopRDF() {
-      loadAnyRDF(window.location.origin + '/classes/CIM_ComputerSystem/top');
+      loadAnyRDF(window.location.origin + '/objects/top');
     }
 
     async function loadProcessesRDF() {
-      loadAnyRDF(window.location.origin + '/classes/CIM_ComputerSystem/processes_list');
+      loadAnyRDF(window.location.origin + '/objects/processes_list');
     }
 
     function loadRDFText(data, contentType, sourceLabel) {
@@ -371,15 +383,25 @@
       }
     }
 
-    function getClass(url) {
+    // The input is something like 'http://localhost:8765/objects?xid=Linux/cgroup.name=system.slice'
+    // 'http://localhost:8765/objects?xid=CIM_Process.Handle=4'
+    // It could also take the class from the URL path.
+    function getMonikerFromUrl(url) {
       if (!url.includes('?xid=')) return 'default';
       const query = url.split('?')[1];
       if (!query) return 'default';
       const params = query.split('&');
       const xid = params.find(p => p.startsWith('xid='));
       if (!xid) return 'default';
-      const value = xid.split('=')[1];
-      const hierarchy = value.split('.')[0]; // e.g. Linux/cgroup
+      const value = xid.substring(4); // remove 'xid='
+      if (!value) return 'default';
+      return value;
+    }
+
+    // The input is something like 'http://localhost:8765/objects?xid=Linux/cgroup.name=system.slice'
+    function getClassFromUrl(url) {
+      const moniker = getMonikerFromUrl(url);
+      const hierarchy = moniker.split('.')[0]; // e.g. Linux/cgroup
       return hierarchy.replace(/\//g, ' '); // 'Linux cgroup'
     }
 
@@ -519,7 +541,7 @@
 
       function addNode(subj) {
         if (!nodesMap.has(subj)) {
-          const subjectClass = getClass(subj);
+          const subjectClass = getClassFromUrl(subj);
           console.log('Adding node for url:', subj, 'with class:', subjectClass);
           nodesMap.set(subj, { id: subj, label: subj, displayLabel: shortenLabel(subj), literals: [], itemClass: subjectClass });
         }

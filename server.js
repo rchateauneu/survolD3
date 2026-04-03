@@ -5,8 +5,10 @@ const si = require('systeminformation');
 const fs = require('fs');
 const open = require('open');
 const os = require('os');
-const { createMoniker, LDT, RDF, RDFS } = require('./utils');
+const { createUriFromClassKVpairs, LDT, RDF, RDFS, splitMoniker } = require('./utils');
 const { generateMenu } = require('./menus');
+const { wmiClassMenu } = require('./wmi_utils');
+
 
 const app = express();
 app.use(cors());
@@ -16,6 +18,8 @@ const hostname = os.hostname();
 const port = 8765;
 
 
+////////////////////////////////////////////////////////////////////////////////
+// TODO: Move this to a special file.
 
 /*
 Processing process  {
@@ -40,8 +44,7 @@ Processing process  {
 }
 */
 function fillProcess(store, windowOrigin, userName, parentPid, processName, processId) {
-  //const processUri = `${baseUrl}?xid=CIM_Process.Handle=${processId}`;
-  const processUri = createMoniker(windowOrigin, 'CIM_Process', { Handle: processId });
+  const processUri = createUriFromClassKVpairs(windowOrigin, 'CIM_Process', { Handle: processId });
   const processNode = $rdf.namedNode(processUri);
 
   // <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
@@ -51,14 +54,15 @@ function fillProcess(store, windowOrigin, userName, parentPid, processName, proc
   if (userName == '') {
     userName = 'undefined_user';
   }
-  const accountUri = createMoniker(windowOrigin, 'LMI_Account', { Name: userName, Domain: hostname });
+  // TODO: Should define the account. Also: It is always empty. Why ?
+  const accountUri = createUriFromClassKVpairs(windowOrigin, 'LMI_Account', { Name: userName, Domain: hostname });
   store.add(processNode, LDT('account'), $rdf.namedNode(accountUri));
 
   // <ldt:Handle>24</ldt:Handle> -> Using PID.
   store.add(processNode, LDT('Handle'), $rdf.literal(String(processId)));
 
   // <ldt:ppid rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=CIM_Process.Handle=<PARENT_PID>"/>
-  const parentProcessUri = createMoniker(windowOrigin, 'CIM_Process', { Handle: parentPid });
+  const parentProcessUri = createUriFromClassKVpairs(windowOrigin, 'CIM_Process', { Handle: parentPid });
   store.add(processNode, LDT('ppid'), $rdf.namedNode(parentProcessUri));
 
   // <rdfs:label><PROCESS_NAME></rdfs:label>
@@ -69,6 +73,11 @@ function fillProcess(store, windowOrigin, userName, parentPid, processName, proc
 }
 
 async function fillProcessesList(windowOrigin) {
+  // TODO: In fact, maybe this is not the current machine but a remote machine,
+  // so we should not use os.hostname() but rather the serverHost variable computed in refToWindowOrigin,
+  // or better, taken from the moniker.
+  // The host name is implicitly given in the url, so it implies that it cannot be accessed from elsewhere,
+  // but this might be wrong.
   const store = $rdf.graph();
 
   detectedProcesses = new Set();
@@ -94,30 +103,62 @@ async function fillProcessesList(windowOrigin) {
 }
 
 // This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
-function minimalRdfContent(windowOrigin) {
+function entityCIM_ComputerSystem(windowOrigin) {
+  // TODO: Add more information.
+
+  // TODO: In fact, maybe this is not the current machine but a remote machine,
+  // so we should not use os.hostname() but rather the serverHost variable computed in refToWindowOrigin,
+  // or better, taken from the moniker.
+  const currentHost = os.hostname();
   const store = $rdf.graph();
-  const uriHostname = createMoniker(windowOrigin, 'CIM_ComputerSystem', { Name: serverHost });
+  const uriHostname = createUriFromClassKVpairs(windowOrigin, 'CIM_ComputerSystem', { Name: currentHost });
   const nodeHostname = $rdf.namedNode(uriHostname);
 
-  store.add(nodeHostname, RDFS('label'), $rdf.literal(serverHost));
-  store.add(nodeHostname, LDT('Name'), $rdf.literal(serverHost));
+  store.add(nodeHostname, RDFS('label'), $rdf.literal(currentHost));
+  store.add(nodeHostname, LDT('Name'), $rdf.literal(currentHost));
   store.add(nodeHostname, RDF('type'), LDT('CIM_ComputerSystem'));
   return store;
 }
 
-function getHostPort(req) {
+////////////////////////////////////////////////////////////////////////////////
+// TODO: Move this to a special file.
+
+function entityCIM_Process(windowOrigin) {
+  // TODO: Add more information.
+  const store = $rdf.graph();
+/*
+First thing : Extract the parameters from the query.
+Ou alors : On fait tout la back-end avec WMI sauf exception si pas le choix.$rdf
+Motif: On ne veut pas perdre de temps.
+Et on veut passer a wikidata ou autre pour pousser le concept.
+
+On fait juste fonctionner ca vite fait sur le gaz, pour verifier la logique. Ensuite, tout WMI
+mais avec des fonctions en plus, faites a la main.
+
+*/
+
+  const uriHostname = createUriFromClassKVpairs(windowOrigin, 'CIM_Process', { Name: serverHost });
+  const nodeHostname = $rdf.namedNode(uriHostname);
+
+  store.add(nodeHostname, RDFS('label'), $rdf.literal(serverHost));
+  store.add(nodeHostname, LDT('Name'), $rdf.literal(serverHost));
+  store.add(nodeHostname, RDF('type'), LDT('CIM_Process'));
+
+  // Add another object to link to.
+
+  return store;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+function refToWindowOrigin(req) {
   const hostHeader = req.get('host') || `localhost:${port}`;
   const [host, maybePort] = hostHeader.split(':');
   const portNumber = maybePort || port;
   const serverHost = host || 'localhost';
-  return [serverHost, portNumber];
-}
-
-function refToWindowOrigin(req) {
-      [serverHost, portNumber] = getHostPort(req);
-      const windowOrigin = `http://${serverHost}:${portNumber}`;
-      console.log(`Computed windowOrigin: ${windowOrigin} from serverHost: ${serverHost} and portNumber: ${portNumber}`);
-      return windowOrigin;
+  const windowOrigin = `http://${serverHost}:${portNumber}`;
+  console.log(`Computed windowOrigin: ${windowOrigin} from serverHost: ${serverHost} and portNumber: ${portNumber}`);
+  return windowOrigin;
 }
 
 function serializeRdfStore(res, rdfStore, windowOrigin) {
@@ -139,60 +180,63 @@ function serializeRdfStore(res, rdfStore, windowOrigin) {
 - Dynamically, based on the presence of files in a directory, which are not necessarily CGI endpoints, but which have an associated method to generate RDF data.
 */
 
-rdfEndpoints = new Map();
-
-rdfEndpoints.set(
-  "CIM_ComputerSystem",
-  new Map(
+rdfGlobalEndpoints = new Map(
     [
     ["top", {
-      endPointComment : "Dummy endpoint to test RDF generation",
+      endPointComment : "Current machine information",
       endPointMethod: (windowOrigin) => {
-      const store = minimalRdfContent(windowOrigin);
+      const store = entityCIM_ComputerSystem(windowOrigin);
       return store;
     }}
     ],
-    ["processes_list", {
+    ["processes_list", { // This could be done with a WMI query.
       endPointComment : "List of processes",    
       endPointMethod: async (windowOrigin) => {
       const store = await fillProcessesList(windowOrigin);
       return store;
       }
-    }]
-  ]));
+    }],
+  ]);
 
-app.get('/menu/:className', (req, res, next) => {
-  console.log(`Received menu request for class: ${req.params.className}`);
-  rdfEndpoints.forEach((value, key) => {
-    console.log(`rdfEndpoints element: ${key}`, value);
-  });
-  console.log("================================");
+function objectToEndPointMenu(windowOrigin, xid) {
+  console.log(`objectToEndPointMenu called with windowOrigin: ${windowOrigin} and xid: ${xid}`);
+  if(xid == undefined || xid == "") {
+    return rdfGlobalEndpoints;
+  } else {
+    classEndPoints = wmiClassMenu(windowOrigin, xid);    
+    return classEndPoints;
+  }
+}
 
-  const classEndPoints = rdfEndpoints.get(req.params.className);
-  if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
-
-  classEndPoints.forEach((value, key) => {
-    console.log(`classEndPoint element: ${key}`, value);
-  });
-  console.log("================================");
-
+app.get('/menu', (req, res, next) => {
   const windowOrigin = refToWindowOrigin(req);
-  const rdfStore = generateMenu(req.params.className, classEndPoints, windowOrigin);
+  console.log('req.query: ', req.query);
+  const xid = req.query.xid;
+  console.log(`xid: ${xid}`);
+  let classEndPoints = null;
+  classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
+  if (!classEndPoints) return res.status(404).send(`Class not found for xid: ${xid}`);
+  [className, kvPairs] = splitMoniker(xid);
+  const rdfStore = generateMenu(className, classEndPoints, windowOrigin);
   serializeRdfStore(res, rdfStore, windowOrigin);
 });
 
-app.get('/classes/:className/:endPoint', async (req, res, next) => {
+
+
+app.get('/objects/:endPoint', async (req, res, next) => {
   const endPoint = req.params.endPoint;
-  console.log(`Received request for class: ${req.params.className}, endpoint: ${endPoint}`);
-  const classEndPoints = rdfEndpoints.get(req.params.className);
-  if (!classEndPoints) return res.status(404).send(`Class not found: ${req.params.className}`);
+  console.log(`Received request for endpoint: ${endPoint}`);
+  const windowOrigin = refToWindowOrigin(req);
+  const xid = req.query.xid;
+  classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
+  if (!classEndPoints) return res.status(404).send(`Class not found for xid: ${xid}`);
 
   const endPointObject = classEndPoints.get(req.params.endPoint);
   if (!endPointObject) return res.status(404).send(`End point not found: ${req.params.endPoint}`);
 
   const generator = endPointObject.endPointMethod;
   if (!generator) return next();
-  const windowOrigin = refToWindowOrigin(req);
+  console.log(`xid: ${xid}`);
   const rdfStore = await generator(windowOrigin);
   serializeRdfStore(res, rdfStore, windowOrigin);
 });

@@ -9,6 +9,7 @@ const { spawn } = require('child_process');
  * @returns {Promise<Object|null>} - A promise resolving to the WMI object properties.
  */
 function GetEntity(wmiClassName, wmiNamespace, keyProperties) {
+  console.log(`GetEntity called with class: ${wmiClassName}, namespace: ${wmiNamespace}, keys: ${JSON.stringify(keyProperties)}`);
   return new Promise((resolve, reject) => {
     // Build a WQL filter from the key properties (e.g., "Handle=1234" or "Name='C:'")
     const filter = Object.entries(keyProperties)
@@ -26,6 +27,7 @@ function GetEntity(wmiClassName, wmiNamespace, keyProperties) {
         $obj | Select-Object -Property * | ConvertTo-Json -Compress
       }
     `;
+    console.log(script);
 
     const child = spawn('powershell.exe', ['-NoProfile', '-Command', script]);
 

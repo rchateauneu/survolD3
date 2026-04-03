@@ -38,7 +38,7 @@ function recursiveMenuGeneration(store, menuLabel, uriRootEndPoint, theEndPoints
 function generateMenu(className, theRdfEndpoints, windowOrigin) {
   const menuStore = $rdf.graph();
   console.log("Generating menu for class:", className, "windowOrigin:", windowOrigin);
-  const rootUri = windowOrigin + `/classes/${className}`;
+  const rootUri = windowOrigin + "/objects";
 
   recursiveMenuGeneration(menuStore, className, rootUri, theRdfEndpoints);
 
