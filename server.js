@@ -93,7 +93,7 @@ async function fillProcessesList(windowOrigin) {
   } catch (error) {
     console.error("Error getting process list:", error);
   }
-  undefinedProcs = new Set([...detectedParents].filter(x => !detectedProcesses.has(x)));
+  const undefinedProcs = new Set([...detectedParents].filter(x => !detectedProcesses.has(x)));
   undefinedProcs.forEach(pid => {
     console.warn(`Parent PID ${pid} not found in process list. Adding placeholder node.`);
     fillProcess(store, windowOrigin, 'unknown_user', 'unknown_parent_pid', `Unknown Process ${pid}`, pid);
@@ -213,10 +213,9 @@ app.get('/menu', (req, res, next) => {
   console.log('req.query: ', req.query);
   const xid = req.query.xid;
   console.log(`xid: ${xid}`);
-  let classEndPoints = null;
-  classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
+  const classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
   if (!classEndPoints) return res.status(404).send(`Class not found for xid: ${xid}`);
-  [className, kvPairs] = splitMoniker(xid);
+  const [className, kvPairs] = splitMoniker(xid);
   const rdfStore = generateMenu(className, classEndPoints, windowOrigin);
   serializeRdfStore(res, rdfStore, windowOrigin);
 });
@@ -228,7 +227,7 @@ app.get('/objects/:endPoint', async (req, res, next) => {
   console.log(`Received request for endpoint: ${endPoint}`);
   const windowOrigin = refToWindowOrigin(req);
   const xid = req.query.xid;
-  classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
+  const classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
   if (!classEndPoints) return res.status(404).send(`Class not found for xid: ${xid}`);
 
   const endPointObject = classEndPoints.get(req.params.endPoint);

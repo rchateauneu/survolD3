@@ -15,7 +15,7 @@ function createUriFromClassKVpairs(windowOrigin, className, objKeyValues) {
 }
 
 function splitMoniker(monikerString) {
-  console.log(`Splitting moniker: ${monikerString}`);
+  console.log(`splitMoniker: ${monikerString}`);
   if (monikerString == undefined) {
     return [undefined, {}];
   }
@@ -29,9 +29,17 @@ function splitMoniker(monikerString) {
   // TODO: Handle cases where values might contain '=' or ',' characters. This is a simple split that assumes they do not.
   // TODO: The value might be a string that should be quoted. For example: Name='John Doe'. In that case, we should handle the quotes properly.
   kvPart.split(',').forEach(pair => {
-    const [key, value] = pair.split('=');
+    [key, value] = pair.split('=');
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    }
+    if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
     if (key) kvPairs[key] = value || '';
   });
+  console.log(`splitMoniker className: ${className}`);
+  console.log(`splitMoniker kvPairs: ${JSON.stringify(kvPairs)}`);
   return [className, kvPairs];
 }
 

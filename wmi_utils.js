@@ -1,4 +1,4 @@
-const { splitMoniker, createUriFromClassKVpairs, LDT, RDF } = require('./utils');
+const { splitMoniker, createUriFromClassKVpairs, LDT, RDF, RDFS } = require('./utils');
 const { GetAssociators } = require('./wmi/WMI_Associators');
 const { GetEntity } = require('./wmi/WMI_Entity');
 
@@ -38,6 +38,7 @@ async function wmiRdfObjectInformation(windowOrigin, wmiClassName, keyProperties
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
     const jsonObjectEndPoint = await GetEntity(wmiClassName, wmiNamespace, keyProperties);
+    console.log(`Entity information retrieved: ${JSON.stringify(jsonObjectEndPoint)}`);
 
     const cimInstanceProperties = jsonObjectEndPoint.CimInstanceProperties;
     for (const oneProperty of cimInstanceProperties) {
@@ -55,8 +56,11 @@ async function wmiRdfObjectInformation(windowOrigin, wmiClassName, keyProperties
         const propType = oneProperty.CimType;
 
         if(propValue != null) {
-            console.log(`Adding property to RDF store: ${propName} = ${propValue} (CimType: ${CimTypeMap_MI[propType].name})`);
-            store.add(objectNode, LDT(propName), $rdf.literal(propValue, null, propType));
+            const mappedType = CimTypeMap_MI[propType] || { name: "Unknown", rdfType: null };
+            const rdfDataType = mappedType.rdfType ? $rdf.namedNode(mappedType.rdfType.replace('xsd:', 'http://www.w3.org/2001/XMLSchema#')) : null;
+            
+            console.log(`Adding property to RDF store: ${propName} = ${propValue} (CimType: ${mappedType.name})`);
+            store.add(objectNode, LDT(propName), $rdf.literal(propValue, null, rdfDataType));
         }
     }
 
@@ -70,16 +74,20 @@ async function wmiRdfAssociators(windowOrigin, wmiClassName, keyProperties) {
     const objectNode = $rdf.namedNode(objectUri);
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
-    const jsonObjectEndPoint = await GetAssociators(wmiClassName, wmiNamespace, keyProperties)
+    const jsonObjectEndPoint = await GetAssociators(wmiClassName, wmiNamespace, keyProperties);
+    if(!jsonObjectEndPoint == null)
+    {
+        return store; // No associators found, return the store with just the object information.
+    }
+    console.log(`Associators found: ${jsonObjectEndPoint.length}`);
 
     jsonObjectEndPoint.forEach(function(objectAssociator) {
         console.log(objectAssociator);
-        /*
-        {
-            AssocClass: 'Win32_SystemProcesses',
-            Moniker: "Win32_ComputerSystem.Name='LAPTOP-R89KG6V1'"
-        },
-        */
+        // {
+        //     "AssocClass": "CIM_ProcessExecutable",
+        //     "Name": "C:\\WINDOWS\\System32\\combase.dll",
+        //     "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\System32\\combase.dll'"        },
+        // }
 
         const [associatorClassName, associatorKeyValuePairs] = splitMoniker(objectAssociator.Moniker);
         // Maybe we could simply concatenate the moniker, but the class is needed anyway.
@@ -88,7 +96,11 @@ async function wmiRdfAssociators(windowOrigin, wmiClassName, keyProperties) {
         // ... must not contain unencoded spaces.
         const associatorUri = createUriFromClassKVpairs(windowOrigin, associatorClassName, associatorKeyValuePairs);
         const associatorNode = $rdf.namedNode(associatorUri);
-        store.add(objectNode, RDF('type'), LDT(wmiClassName));
+        store.add(associatorNode, RDF('type'), LDT(associatorClassName));
+        console.log(`Adding associator to RDF store: ${associatorUri} ` + objectAssociator);
+        const associatorLabel = objectAssociator.Name || "No Name";
+        console.log(`Associator label: ${associatorLabel} objectAssociator.Name: ${objectAssociator.Name}`);
+        store.add(associatorNode, RDFS('label'), $rdf.literal(associatorLabel));
 
         // The name of the asociator class is used as the predicate.
         store.add(objectNode, LDT(objectAssociator.AssocClass), associatorNode);
@@ -105,7 +117,12 @@ function wmiClassMenu(windowOrigin, xid)
         console.error("xid is undefined or empty. Returning null.");
         return null;
     }
-    [className, kvPairs] = splitMoniker(xid);
+    const [className, kvPairs] = splitMoniker(xid);
+
+    // WMI wants to have escaped backslashes:
+    for (const [key, value] of Object.entries(kvPairs)) {
+        kvPairs[key] = value.replace(/\\/g, '\\\\');
+    }
 
     const rdfWmiClassMenuEndPoints = new Map();
 
@@ -120,7 +137,6 @@ function wmiClassMenu(windowOrigin, xid)
         "associators", {
             endPointComment : "Associated objects",    
             endPointMethod: async (windowOrigin) => {
-                const objectUri = createUriFromClassKVpairs(windowOrigin, className, kvPairs);
                 return await wmiRdfAssociators(windowOrigin, className, kvPairs);
         }});
 

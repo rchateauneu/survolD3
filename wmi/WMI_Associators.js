@@ -9,6 +9,7 @@ const { spawn } = require('child_process');
  * @returns {Promise<Array>} - A promise resolving to an array of associated WMI objects.
  */
 function GetAssociators(wmiClassName, wmiNamespace, keyProperties) {
+  console.log(`GetAssociators called with class: ${wmiClassName}, namespace: ${wmiNamespace}, keys: ${JSON.stringify(keyProperties)}`);
   return new Promise((resolve, reject) => {
     // Build the WMI object path part (e.g., Win32_Process.Handle="1234")
     const keyPart = Object.entries(keyProperties)
@@ -57,6 +58,7 @@ function GetAssociators(wmiClassName, wmiNamespace, keyProperties) {
                         if ($tPath.ToLower() -ne $sourcePath.ToLower()) {
                             [PSCustomObject]@{
                                 AssocClass = $assocClass
+                                Name       = $target.Name
                                 Moniker    = $tPath
                             }
                         }

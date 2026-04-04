@@ -25,7 +25,7 @@ async function runTest() {
 
     if (associators && associators.length > 0) {
       console.log(`[SUCCESS] Found ${associators.length} associated entities.`);
-      console.log(JSON.stringify(entityData, null, 2));
+      console.log(JSON.stringify(associators, null, 2));
       
       //associators.forEach((assoc, index) => {
       //  console.log(`  ${index + 1}. AssocClass: ${assoc.AssocClass}`);
