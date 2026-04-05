@@ -5,16 +5,27 @@ const RDF = $rdf.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
 const DCTERMS = $rdf.Namespace("http://purl.org/dc/terms/");
 
+function createUriFromMoniker(windowOrigin, moniker) {
+  console.log(`createUriFromMoniker moniker: ${moniker}`);
+  // This URL intends to match the original version of Survol but can be replaced.
+  // const objectUri = `${windowOrigin}/Survol/survol/entity.py?xid=${moniker}`;
+  const objectUri = `${windowOrigin}/Survol/survol/entity.py?xid=` + encodeURIComponent(moniker);
+  console.log(`createUriFromMoniker objectUri: ${objectUri}`);
+  return objectUri;
+}
+
 function createUriFromClassKVpairs(windowOrigin, className, objKeyValues) {
   console.log(`createUriFromClassKVpairs objKeyValues: ${objKeyValues}`);
   const keyValuePairs = Object.entries(objKeyValues).map(
-    ([key, value]) => key + "=" + encodeURIComponent(value)
+    ([key, value]) => key + "=" + value
   );
 
-  // This URL intendes to match the original version of Survol but can be replaced.
-  const moniker = `${windowOrigin}/Survol/survol/entity.py?xid=${className}.${keyValuePairs.join(',')}`;
+  const moniker = `${className}.${keyValuePairs.join(',')}`;
   console.log(`createUriFromClassKVpairs moniker: ${moniker}`);
-  return moniker;
+
+  const objectUri = createUriFromMoniker(windowOrigin, moniker);
+  console.log(`createUriFromClassKVpairs objectUri: ${objectUri}`);
+  return objectUri;
 }
 
 function splitMoniker(monikerString) {
@@ -53,6 +64,7 @@ function splitMoniker(monikerString) {
 }
 
 module.exports = {
+  createUriFromMoniker,
   createUriFromClassKVpairs,
   splitMoniker,
   LDT,
