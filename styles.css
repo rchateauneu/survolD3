@@ -26,11 +26,11 @@ ellipse {
   fill: red;
 }
 
-.CIM_Process {
+.Win32_Process {
   fill: blue;
 }
 
-text.CIM_Process {
+text.Win32_Process {
   fill: white;
 }
 
@@ -46,7 +46,7 @@ text.CIM_Process {
   fill: purple;
 }
 
-.CIM_ComputerSystem {
+.Win32_ComputerSystem {
   fill: yellow;
 }
 

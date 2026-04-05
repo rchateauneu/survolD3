@@ -44,11 +44,11 @@ Processing process  {
 }
 */
 function fillProcess(store, windowOrigin, userName, parentPid, processName, processId) {
-  const processUri = createUriFromClassKVpairs(windowOrigin, 'CIM_Process', { Handle: processId });
+  const processUri = createUriFromClassKVpairs(windowOrigin, 'Win32_Process', { Handle: processId });
   const processNode = $rdf.namedNode(processUri);
 
-  // <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#CIM_Process"/>
-  store.add(processNode, RDF('type'), LDT('CIM_Process'));
+  // <rdf:type rdf:resource="http://www.primhillcomputers.com/survol#Win32_Process"/>
+  store.add(processNode, RDF('type'), LDT('Win32_Process'));
 
   // <ldt:account rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=LMI_Account.Name=<USER_NAME>,Domain=<SERVER_HOST>"/>
   if (userName == '') {
@@ -56,13 +56,18 @@ function fillProcess(store, windowOrigin, userName, parentPid, processName, proc
   }
   // TODO: Should define the account. Also: It is always empty. Why ?
   const accountUri = createUriFromClassKVpairs(windowOrigin, 'LMI_Account', { Name: userName, Domain: hostname });
-  store.add(processNode, LDT('account'), $rdf.namedNode(accountUri));
+  const accountNode = $rdf.namedNode(accountUri);
+  store.add(accountNode, LDT('type'), LDT('LMI_Account'));
+  store.add(processNode, RDFS('label'), $rdf.literal(userName));
+  store.add(accountNode, LDT('Name'), $rdf.literal(userName));
+
+  store.add(processNode, LDT('account'), accountNode);
 
   // <ldt:Handle>24</ldt:Handle> -> Using PID.
   store.add(processNode, LDT('Handle'), $rdf.literal(String(processId)));
 
-  // <ldt:ppid rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=CIM_Process.Handle=<PARENT_PID>"/>
-  const parentProcessUri = createUriFromClassKVpairs(windowOrigin, 'CIM_Process', { Handle: parentPid });
+  // <ldt:ppid rdf:resource="http://<SERVER_HOST>:<PORT_NUMBER>/Survol/survol/entity.py?xid=Win32_Process.Handle=<PARENT_PID>"/>
+  const parentProcessUri = createUriFromClassKVpairs(windowOrigin, 'Win32_Process', { Handle: parentPid });
   store.add(processNode, LDT('ppid'), $rdf.namedNode(parentProcessUri));
 
   // <rdfs:label><PROCESS_NAME></rdfs:label>
@@ -103,7 +108,7 @@ async function fillProcessesList(windowOrigin) {
 }
 
 // This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
-function entityCIM_ComputerSystem(windowOrigin) {
+async function entityWin32_ComputerSystem(windowOrigin) {
   // TODO: Add more information.
 
   // TODO: In fact, maybe this is not the current machine but a remote machine,
@@ -111,45 +116,34 @@ function entityCIM_ComputerSystem(windowOrigin) {
   // or better, taken from the moniker.
   const currentHost = os.hostname();
   const store = $rdf.graph();
-  const uriHostname = createUriFromClassKVpairs(windowOrigin, 'CIM_ComputerSystem', { Name: currentHost });
+  const uriHostname = createUriFromClassKVpairs(windowOrigin, 'Win32_ComputerSystem', { Name: currentHost });
   const nodeHostname = $rdf.namedNode(uriHostname);
 
   store.add(nodeHostname, RDFS('label'), $rdf.literal(currentHost));
   store.add(nodeHostname, LDT('Name'), $rdf.literal(currentHost));
-  store.add(nodeHostname, RDF('type'), LDT('CIM_ComputerSystem'));
-  return store;
-}
+  store.add(nodeHostname, RDF('type'), LDT('Win32_ComputerSystem'));
 
-////////////////////////////////////////////////////////////////////////////////
-// TODO: Move this to a special file.
-
-function entityCIM_Process(windowOrigin) {
-  // TODO: Add more information.
-  const store = $rdf.graph();
-/*
-First thing : Extract the parameters from the query.
-Ou alors : On fait tout la back-end avec WMI sauf exception si pas le choix.$rdf
-Motif: On ne veut pas perdre de temps.
-Et on veut passer a wikidata ou autre pour pousser le concept.
-
-On fait juste fonctionner ca vite fait sur le gaz, pour verifier la logique. Ensuite, tout WMI
-mais avec des fonctions en plus, faites a la main.
-
-*/
-
-  const uriHostname = createUriFromClassKVpairs(windowOrigin, 'CIM_Process', { Name: serverHost });
-  const nodeHostname = $rdf.namedNode(uriHostname);
-
-  store.add(nodeHostname, RDFS('label'), $rdf.literal(serverHost));
-  store.add(nodeHostname, LDT('Name'), $rdf.literal(serverHost));
-  store.add(nodeHostname, RDF('type'), LDT('CIM_Process'));
-
-  // Add another object to link to.
+  // Loop on all disks connected to this machine.
+  try {
+    const disks = await si.diskLayout();
+    disks.forEach(disk => {
+      console.log(`Disk Name: ${disk.name}`);
+      console.log(`Disk Size: ${disk.size}`);
+      console.log(`Disk Type: ${disk.type}`);
+      console.log(`Disk Mountpoint: ${disk.mountpoint}`);
+      const uriDisk = createUriFromClassKVpairs(windowOrigin, 'Win32_LogicalDisk', { Name: disk.name });
+      const nodeDisk = $rdf.namedNode(uriDisk);
+      store.add(nodeDisk, RDFS('label'), $rdf.literal(disk.name));
+      store.add(nodeDisk, LDT('Name'), $rdf.literal(disk.name));
+      store.add(nodeDisk, RDF('type'), LDT('Win32_LogicalDisk'));
+      store.add(nodeHostname, LDT('hasDisk'), nodeDisk);
+    });
+  } catch (error) {
+    console.error("Error getting disk layout:", error);
+  }
 
   return store;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 function refToWindowOrigin(req) {
   const hostHeader = req.get('host') || `localhost:${port}`;
@@ -184,18 +178,20 @@ rdfGlobalEndpoints = new Map(
     [
     ["top", {
       endPointComment : "Current machine information",
-      endPointMethod: (windowOrigin) => {
-      const store = entityCIM_ComputerSystem(windowOrigin);
-      return store;
-    }}
+      endPointMethod: async (windowOrigin) => {
+          const store = await entityWin32_ComputerSystem(windowOrigin);
+          return store;
+        }
+      }
     ],
     ["processes_list", { // This could be done with a WMI query.
       endPointComment : "List of processes",    
-      endPointMethod: async (windowOrigin) => {
-      const store = await fillProcessesList(windowOrigin);
-      return store;
+        endPointMethod: async (windowOrigin) => {
+          const store = await fillProcessesList(windowOrigin);
+          return store;
+        }
       }
-    }],
+    ],
   ]);
 
 function objectToEndPointMenu(windowOrigin, xid) {
@@ -219,8 +215,6 @@ app.get('/menu', (req, res, next) => {
   const rdfStore = generateMenu(className, classEndPoints, windowOrigin);
   serializeRdfStore(res, rdfStore, windowOrigin);
 });
-
-
 
 app.get('/objects/:endPoint', async (req, res, next) => {
   const endPoint = req.params.endPoint;

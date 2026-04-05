@@ -101,6 +101,7 @@ async function wmiRdfAssociators(windowOrigin, wmiClassName, keyProperties) {
         const associatorLabel = objectAssociator.Name || "No Name";
         console.log(`Associator label: ${associatorLabel} objectAssociator.Name: ${objectAssociator.Name}`);
         store.add(associatorNode, RDFS('label'), $rdf.literal(associatorLabel));
+        store.add(associatorNode, RDF('Name'), $rdf.literal(associatorLabel));
 
         // The name of the asociator class is used as the predicate.
         store.add(objectNode, LDT(objectAssociator.AssocClass), associatorNode);

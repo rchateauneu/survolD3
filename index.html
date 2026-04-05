@@ -436,7 +436,7 @@
       return url;
     }
 
-    function generateTable(itemClass, literals) {
+    function generateTooltipTable(itemClass, literals) {
       let html = `<table class="tooltip-table"><thead><tr><th colspan="2">${itemClass}</th></tr></thead><tbody>`;
       // This is done at each display, but the number of literals is usually small and it ensures consistent ordering.
       literals.sort((a, b) => a.predicate.localeCompare(b.predicate));
@@ -467,11 +467,12 @@
     function attachNodeInteractivity(selection) {
       selection
         .on("mouseover", function(event, d) {
+          console.log('Mouseover on node:', d);
           if (d.literals && d.literals.length > 0) {
             tooltip.style("display", "block")
               .style("left", (event.pageX + 10) + "px")
               .style("top", (event.pageY - 10) + "px")
-              .html(generateTable(d.itemClass, d.literals));
+              .html(generateTooltipTable(d.itemClass, d.literals));
           }
         })
         .on("mouseout", function() {
