@@ -123,23 +123,22 @@ async function entityWin32_ComputerSystem(windowOrigin) {
   store.add(nodeHostname, LDT('Name'), $rdf.literal(currentHost));
   store.add(nodeHostname, RDF('type'), LDT('Win32_ComputerSystem'));
 
-  // Loop on all disks connected to this machine.
+  // Loop on all logical disks (C:, D:, etc.) using si.fsSize()
   try {
-    const disks = await si.diskLayout();
-    disks.forEach(disk => {
-      console.log(`Disk Name: ${disk.name}`);
-      console.log(`Disk Size: ${disk.size}`);
-      console.log(`Disk Type: ${disk.type}`);
-      console.log(`Disk Mountpoint: ${disk.mountpoint}`);
-      const uriDisk = createUriFromClassKVpairs(windowOrigin, 'Win32_LogicalDisk', { Name: disk.name });
-      const nodeDisk = $rdf.namedNode(uriDisk);
-      store.add(nodeDisk, RDFS('label'), $rdf.literal(disk.name));
-      store.add(nodeDisk, LDT('Name'), $rdf.literal(disk.name));
-      store.add(nodeDisk, RDF('type'), LDT('Win32_LogicalDisk'));
-      store.add(nodeHostname, LDT('hasDisk'), nodeDisk);
+    console.log("Getting logical disks from fsSize...");
+    const fileSystems = await si.fsSize();
+    fileSystems.forEach(fs => {
+      console.log(`Logical Disk Name: ${fs}`);
+      const uriLogicalDisk = createUriFromClassKVpairs(windowOrigin, 'Win32_LogicalDisk', { DeviceID: fs.mount });
+      const nodeLogicalDisk = $rdf.namedNode(uriLogicalDisk);
+      store.add(nodeLogicalDisk, RDFS('label'), $rdf.literal(fs.mount));
+      store.add(nodeLogicalDisk, LDT('Name'), $rdf.literal(fs.mount));
+      store.add(nodeLogicalDisk, RDF('type'), LDT('Win32_LogicalDisk'));
+      store.add(nodeHostname, LDT('hasDisk'), nodeLogicalDisk);
+      console.log(`Logical Disk Name: ${fs.mount} finished`);
     });
   } catch (error) {
-    console.error("Error getting disk layout:", error);
+    console.error("Error getting logical disks from fsSize:", error);
   }
 
   return store;

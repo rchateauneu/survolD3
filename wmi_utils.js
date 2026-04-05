@@ -80,6 +80,10 @@ async function wmiRdfAssociators(windowOrigin, wmiClassName, keyProperties) {
         return store; // No associators found, return the store with just the object information.
     }
     console.log(`Associators found: ${jsonObjectEndPoint.length}`);
+    if(jsonObjectEndPoint.length == null) {
+        console.log(`No associators found for ${wmiClassName} with key properties ${JSON.stringify(keyProperties)}`);
+        return store;
+    }
 
     jsonObjectEndPoint.forEach(function(objectAssociator) {
         console.log(objectAssociator);

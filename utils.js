@@ -6,11 +6,14 @@ const RDFS = $rdf.Namespace("http://www.w3.org/2000/01/rdf-schema#");
 const DCTERMS = $rdf.Namespace("http://purl.org/dc/terms/");
 
 function createUriFromClassKVpairs(windowOrigin, className, objKeyValues) {
+  console.log(`createUriFromClassKVpairs objKeyValues: ${objKeyValues}`);
   const keyValuePairs = Object.entries(objKeyValues).map(
     ([key, value]) => key + "=" + encodeURIComponent(value)
   );
 
+  // This URL intendes to match the original version of Survol but can be replaced.
   const moniker = `${windowOrigin}/Survol/survol/entity.py?xid=${className}.${keyValuePairs.join(',')}`;
+  console.log(`createUriFromClassKVpairs moniker: ${moniker}`);
   return moniker;
 }
 
@@ -26,15 +29,21 @@ function splitMoniker(monikerString) {
   const className = monikerString.substring(0, dotIndex);
   const kvPart = monikerString.substring(dotIndex + 1);
   const kvPairs = {};
-  // TODO: Handle cases where values might contain '=' or ',' characters. This is a simple split that assumes they do not.
-  // TODO: The value might be a string that should be quoted. For example: Name='John Doe'. In that case, we should handle the quotes properly.
-  kvPart.split(',').forEach(pair => {
-    [key, value] = pair.split('=');
-    if (value.startsWith('"') && value.endsWith('"')) {
-      value = value.slice(1, -1);
-    }
-    if (value.startsWith("'") && value.endsWith("'")) {
-      value = value.slice(1, -1);
+
+  // Split the key-value part by commas, but only if the comma is not inside quotes.
+  // The regex matches sequences of: double-quoted text, single-quoted text, or any character that is not a comma.
+  const segments = kvPart.match(/(?:"[^"]*"|'[^']*'|[^,])+/g) || [];
+
+  segments.forEach(pair => {
+    let [key, value] = pair.split('=');
+
+    if(value)   {
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
+      }
+      if (value.startsWith("'") && value.endsWith("'")) {
+        value = value.slice(1, -1);
+      }
     }
     if (key) kvPairs[key] = value || '';
   });
