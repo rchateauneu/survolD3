@@ -1,4 +1,5 @@
 const { splitMoniker, createUriFromClassKVpairs, createUriFromMoniker, LDT, RDF, RDFS } = require('./utils');
+const { GetAssociators } = require('./wmi/WMI_Associators');
 const { GetReferences } = require('./wmi/WMI_References');
 const { GetEntity } = require('./wmi/WMI_Entity');
 
@@ -85,7 +86,7 @@ async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProper
     }
     console.log(`Associators found: ${jsonObjectEndPoint.length}`);
     if(jsonObjectEndPoint.length == null) {
-        console.log(`No references found for ${wmiClassName} with key properties ${JSON.stringify(keyProperties)}`);
+        console.log(`No associators found for ${wmiClassName} with key properties ${JSON.stringify(keyProperties)}`);
         return store;
     }
 
@@ -111,8 +112,57 @@ async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProper
         store.add(associatorNode, RDFS('label'), $rdf.literal(associatorLabel));
         store.add(associatorNode, RDF('Name'), $rdf.literal(associatorLabel));
 
-        // The name of the asociator class is used as the predicate.
+        // The name of the associator class is used as the predicate.
         store.add(objectNode, LDT(objectAssociator.AssocClass), associatorNode);
+    });
+
+    return store;
+}
+
+async function wmiRdfReferences(windowOrigin, objectUri,wmiClassName, keyProperties) {
+    const store = $rdf.graph();
+    console.log("wmiRdfReferences objectUri:", objectUri);
+    console.log("wmiRdfReferences wmiClassName:", wmiClassName);
+    console.log("wmiRdfReferences keyProperties:", keyProperties);
+
+    const objectNode = $rdf.namedNode(objectUri);
+    store.add(objectNode, RDF('type'), LDT(wmiClassName));
+
+    const jsonObjectEndPoint = await GetReferences(wmiClassName, wmiNamespace, keyProperties);
+    if(!jsonObjectEndPoint == null)
+    {
+        return store; // No references found, return the store with just the object information.
+    }
+    console.log(`References found: ${jsonObjectEndPoint.length}`);
+    if(jsonObjectEndPoint.length == null) {
+        console.log(`No references found for ${wmiClassName} with key properties ${JSON.stringify(keyProperties)}`);
+        return store;
+    }
+
+    jsonObjectEndPoint.forEach(function(objectReference) {
+        console.log(objectReference);
+        // {
+        //     "AssocClass": "CIM_ProcessExecutable",
+        //     "Name": "C:\\WINDOWS\\System32\\combase.dll",
+        //     "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\System32\\combase.dll'"        },
+        // }
+
+        const [referenceClassName, referenceKeyValuePairs] = splitMoniker(objectReference.Moniker);
+        // Maybe we could simply concatenate the moniker, but the class is needed anyway.
+        // Beware of the error message:
+        // Error: NamedNode IRI "http://localhost/xxx/entity.py?xid=CIM_DataFile.Name='C:\Program Files\chrome.exe'" ...
+        // ... must not contain unencoded spaces.
+        const referenceUri = createUriFromClassKVpairs(windowOrigin, referenceClassName, referenceKeyValuePairs);
+        const referenceNode = $rdf.namedNode(referenceUri);
+        store.add(referenceNode, RDF('type'), LDT(referenceClassName));
+        console.log(`Adding reference to RDF store: ${referenceUri} ` + objectReference);
+        const referenceLabel = objectReference.Name || "No Name";
+        console.log(`Reference label: ${referenceLabel} objectReference.Name: ${objectReference.Name}`);
+        store.add(referenceNode, RDFS('label'), $rdf.literal(referenceLabel));
+        store.add(referenceNode, RDF('Name'), $rdf.literal(referenceLabel));
+
+        // The name of the associator class is used as the predicate.
+        store.add(objectNode, LDT(objectReference.AssocClass), referenceNode);
     });
 
     return store;
@@ -146,6 +196,13 @@ function wmiClassMenu(windowOrigin, xid)
     rdfWmiClassMenuEndPoints.set(
         "references", {
             endPointComment : "Referenced objects",    
+            endPointMethod: async (windowOrigin) => {
+                return await wmiRdfReferences(windowOrigin, objectUri, className, kvPairs);
+        }});
+
+    rdfWmiClassMenuEndPoints.set(
+        "associators", {
+            endPointComment : "Associator objects",    
             endPointMethod: async (windowOrigin) => {
                 return await wmiRdfAssociators(windowOrigin, objectUri, className, kvPairs);
         }});
