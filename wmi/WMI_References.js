@@ -1,15 +1,15 @@
 const { spawn } = require('child_process');
 
 /**
- * Retrieves all associators for a specific WMI entity.
+ * Retrieves all references for a specific WMI entity.
  * 
  * @param {string} wmiClassName - The name of the source WMI class (e.g., 'Win32_Process').
  * @param {string} wmiNamespace - The WMI namespace (e.g., 'root/cimv2').
  * @param {Object} keyProperties - Object containing key property names and values to identify the source.
- * @returns {Promise<Array>} - A promise resolving to an array of associated WMI objects.
+ * @returns {Promise<Array>} - A promise resolving to an array of referenced WMI objects.
  */
-function GetAssociators(wmiClassName, wmiNamespace, keyProperties) {
-  console.log(`GetAssociators called with class: ${wmiClassName}, namespace: ${wmiNamespace}, keys: ${JSON.stringify(keyProperties)}`);
+function GetReferences(wmiClassName, wmiNamespace, keyProperties) {
+  console.log(`GetReferences called with class: ${wmiClassName}, namespace: ${wmiNamespace}, keys: ${JSON.stringify(keyProperties)}`);
   return new Promise((resolve, reject) => {
     // Build the WMI object path part (e.g., Win32_Process.Handle="1234")
     const keyPart = Object.entries(keyProperties)
@@ -26,7 +26,7 @@ function GetAssociators(wmiClassName, wmiNamespace, keyProperties) {
     const objectPath = `${wmiClassName}.${keyPart}`;
     console.log(`[DEBUG] Constructed WMI object path: ${objectPath}`);
 
-    // WQL Query: ASSOCIATORS OF {ObjectPath} returns all instances associated with the source.
+    // WQL Query: ASSOCIATORS OF {ObjectPath} returns all instances referenced with the source.
     // We wrap the result in @() in PowerShell to ensure ConvertTo-Json always receives an array.
     const script = `
       $OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -91,4 +91,4 @@ function GetAssociators(wmiClassName, wmiNamespace, keyProperties) {
   });
 }
 
-module.exports = { GetAssociators };
+module.exports = { GetReferences };

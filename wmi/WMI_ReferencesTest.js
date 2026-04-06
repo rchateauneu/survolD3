@@ -1,9 +1,9 @@
-const { GetAssociators } = require('./WMI_Associators');
+const { GetReferences } = require('./WMI_References');
 
 /**
- * WMI_AssociatorsTest.js
+ * WMI_ReferencesTest.js
  * 
- * Standalone test script to verify that GetAssociators can correctly retrieve 
+ * Standalone test script to verify that GetReferences can correctly retrieve 
  * linked WMI entities for a specific running process.
  */
 async function runTest() {
@@ -17,22 +17,22 @@ async function runTest() {
   // For Win32_Process, the key property for the process ID is 'Handle'.
   const keyProperties = { Handle: currentPid };
 
-  console.log(`[TEST] Attempting to retrieve associators for: ${wmiClassName} (PID: ${currentPid})`);
+  console.log(`[TEST] Attempting to retrieve references for: ${wmiClassName} (PID: ${currentPid})`);
 
   try {
-    const associators = await GetAssociators(wmiClassName, wmiNamespace, keyProperties);
-    console.log(associators);
+    const references = await GetReferences(wmiClassName, wmiNamespace, keyProperties);
+    console.log(references);
 
-    if (associators && associators.length > 0) {
-      console.log(`[SUCCESS] Found ${associators.length} associated entities.`);
-      console.log(JSON.stringify(associators, null, 2));
+    if (references && references.length > 0) {
+      console.log(`[SUCCESS] Found ${references.length} referenced entities.`);
+      console.log(JSON.stringify(references, null, 2));
       
-      //associators.forEach((assoc, index) => {
+      //references.forEach((assoc, index) => {
       //  console.log(`  ${index + 1}. AssocClass: ${assoc.AssocClass}`);
       //  console.log(`     Moniker:    ${assoc.Moniker}`);
       //});
     } else {
-      console.log('[INFO] No associated WMI entities found for the specified PID.');
+      console.log('[INFO] No referenced WMI entities found for the specified PID.');
     }
   } catch (error) {
     console.error('[ERROR] WMI Associators test failed:', error.message);

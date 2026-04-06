@@ -170,7 +170,7 @@ function serializeRdfStore(res, rdfStore, windowOrigin) {
   It works even without WMI or WBEM.
 - Dynamically, based on class hierarchies.
 - Based on an entire hierarchy of WMI classes.
-- Dynamically, based on the presence of files in a directory, which are not necessarily CGI endpoints, but which have an associated method to generate RDF data.
+- Dynamically, based on the presence of files in a directory, which are not necessarily CGI endpoints, but which have an referenced method to generate RDF data.
 */
 
 rdfGlobalEndpoints = new Map(

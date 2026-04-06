@@ -175,8 +175,8 @@
       contextMenu.style("display", "none");
     }
 
-    // item.url = http://localhost:8765/objects/associators
-    // clickedObject.id = 'http://localhost:8765/Survol/survol/entity.py?xid=CIM_Process.Handle=1160'
+    // item.url = http://localhost:8765/objects/references
+    // clickedObject.id = 'http://localhost:8765/Survol/survol/entity.py?xid=Win32_Process.Handle=1160'
     function appendXidToMenuUrl(menuItemUrl, clickedObjectId) {
       if(clickedObjectId == null) return menuItemUrl; // No clicked object, return the original URL
       const moniker = getMonikerFromUrl(clickedObjectId);
@@ -202,8 +202,8 @@
               // Where is p.id ?? It should be in the item.
               console.log("Menu item clicked: ", item);
               event.stopPropagation();
-              // item.url = http://localhost:8765/objects/associators
-              // clickedObject.id = 'http://localhost:8765/Survol/survol/entity.py?xid=CIM_Process.Handle=1160'
+              // item.url = http://localhost:8765/objects/references
+              // clickedObject.id = 'http://localhost:8765/Survol/survol/entity.py?xid=Win32_Process.Handle=1160'
               const clickedObjectId = clickedObject ? clickedObject.id : null;
               const menuUrl = appendXidToMenuUrl(item.url, clickedObjectId);
               menuAction(clickedObject, menuUrl);
@@ -304,7 +304,7 @@
         }
       } else {
         // Background click: fetch the dynamic menu from the server
-        // const urlMenu = window.location.origin + "/menu/CIM_ComputerSystem";
+        // const urlMenu = window.location.origin + "/menu/Win32_ComputerSystem";
         const urlMenu = window.location.origin + "/menu?xid=";
         console.log('urlMenu', urlMenu);
         const menuStore = await loadMenu(urlMenu);
@@ -384,7 +384,7 @@
     }
 
     // The input is something like 'http://localhost:8765/objects?xid=Linux/cgroup.name=system.slice'
-    // 'http://localhost:8765/objects?xid=CIM_Process.Handle=4'
+    // 'http://localhost:8765/objects?xid=Win32_Process.Handle=4'
     // It could also take the class from the URL path.
     function getMonikerFromUrl(url) {
       if (!url.includes('?xid=')) return 'default';
@@ -406,7 +406,7 @@
     }
 
     function getShape(classStr) {
-      if (classStr.includes('CIM_Process')) return 'chamfered';
+      if (classStr.includes('Win32_Process')) return 'chamfered';
       if (classStr.includes('CIM_DiskPartition')) return 'circle';
       if (classStr.includes('LMI_Account')) return 'ellipse';
       if (classStr.includes('python')) return 'roundrect';

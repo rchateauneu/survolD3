@@ -1,5 +1,5 @@
 const { splitMoniker, createUriFromClassKVpairs, createUriFromMoniker, LDT, RDF, RDFS } = require('./utils');
-const { GetAssociators } = require('./wmi/WMI_Associators');
+const { GetReferences } = require('./wmi/WMI_References');
 const { GetEntity } = require('./wmi/WMI_Entity');
 
 const wmiNamespace = 'root/cimv2';
@@ -78,14 +78,14 @@ async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProper
     const objectNode = $rdf.namedNode(objectUri);
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
-    const jsonObjectEndPoint = await GetAssociators(wmiClassName, wmiNamespace, keyProperties);
+    const jsonObjectEndPoint = await GetReferences(wmiClassName, wmiNamespace, keyProperties);
     if(!jsonObjectEndPoint == null)
     {
-        return store; // No associators found, return the store with just the object information.
+        return store; // No references found, return the store with just the object information.
     }
     console.log(`Associators found: ${jsonObjectEndPoint.length}`);
     if(jsonObjectEndPoint.length == null) {
-        console.log(`No associators found for ${wmiClassName} with key properties ${JSON.stringify(keyProperties)}`);
+        console.log(`No references found for ${wmiClassName} with key properties ${JSON.stringify(keyProperties)}`);
         return store;
     }
 
@@ -144,8 +144,8 @@ function wmiClassMenu(windowOrigin, xid)
         }});
 
     rdfWmiClassMenuEndPoints.set(
-        "associators", {
-            endPointComment : "Associated objects",    
+        "references", {
+            endPointComment : "Referenced objects",    
             endPointMethod: async (windowOrigin) => {
                 return await wmiRdfAssociators(windowOrigin, objectUri, className, kvPairs);
         }});
