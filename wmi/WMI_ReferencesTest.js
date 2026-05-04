@@ -20,7 +20,7 @@ async function runTest() {
   console.log(`[TEST] Attempting to retrieve references for: ${wmiClassName} (PID: ${currentPid})`);
 
   try {
-    const references = await GetReferences(wmiClassName, wmiNamespace, keyProperties);
+    const references = await GetReferences(wmiNamespace, wmiClassName, keyProperties);
     console.log(references);
 
     if (references && references.length > 0) {

@@ -1,16 +1,52 @@
 const { spawn } = require('child_process');
 
+let wmicpp;
+try {
+  // Try loading from build or the installed location in root
+  wmicpp = require('../wmicpp/build/Release/wmicpp.node');
+} catch (e) {
+  try {
+    wmicpp = require('../wmicpp.node');
+  } catch (err) {
+    wmicpp = null;
+  }
+}
+
+/**
+ * C++ Bridge function for GetEntity
+ */
+function GetEntityCPP(wmiNamespace, wmiClassName, keyProperties) { // This function receives (namespace, class, keys)
+  if (wmicpp && typeof wmicpp.GetEntity === 'function') {
+    // For now, C++ implementation returns an empty object placeholder
+    const result = wmicpp.GetEntity(wmiNamespace, wmiClassName, keyProperties);
+    if (result && Object.keys(result).length > 0) {
+      return result;
+    }
+  }
+  return null;
+}
+
 /**
  * Retrieves a specific WMI entity with all its properties and values.
  * 
- * @param {string} wmiClassName - The name of the WMI class (e.g., 'Win32_Process').
  * @param {string} wmiNamespace - The WMI namespace (e.g., 'root/cimv2').
+ * @param {string} wmiClassName - The name of the WMI class (e.g., 'Win32_Process').
  * @param {Object} keyProperties - Object containing key property names and values used to filter.
  * @returns {Promise<Object|null>} - A promise resolving to the WMI object properties.
  */
-function GetEntity(wmiClassName, wmiNamespace, keyProperties) {
-  console.log(`GetEntity called with class: ${wmiClassName}, namespace: ${wmiNamespace}, keys: ${JSON.stringify(keyProperties)}`);
+function GetEntity(wmiNamespace, wmiClassName, keyProperties) {
+  console.log(`GetEntity called with namespace: ${wmiNamespace}, class: ${wmiClassName}, keys: ${JSON.stringify(keyProperties)}`);
   return new Promise((resolve, reject) => {
+    // Attempt C++ implementation first
+    const cppResult = GetEntityCPP(wmiNamespace, wmiClassName, keyProperties);
+    if (cppResult) {
+      console.log('GetEntity: Using C++ implementation');
+      return resolve(cppResult);
+    } else {
+      console.log('GetEntity: Using PowerShell implementation');
+    }
+
+
     // Build a WQL filter from the key properties (e.g., "Handle=1234" or "Name='C:'")
     const filter = Object.entries(keyProperties)
       .map(([key, value]) => {

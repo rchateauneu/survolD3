@@ -1,0 +1,16 @@
+{
+  "name": "wmicpp",
+  "version": "1.0.0",
+  "description": "C++ WMI Module for survolD3",
+  "main": "build/Release/wmicpp.node",
+  "scripts": {
+    "install": "cmake-js compile --visual-studio-version=2022",
+    "build": "cmake-js build"
+  },
+  "dependencies": {
+    "node-addon-api": "^7.1.0"
+  },
+  "devDependencies": {
+    "cmake-js": "^7.3.0"
+  }
+}

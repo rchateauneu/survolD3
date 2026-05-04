@@ -41,7 +41,7 @@ async function wmiRdfObjectInformation(windowOrigin, objectUri, wmiClassName, ke
     const objectNode = $rdf.namedNode(objectUri);
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
-    const jsonObjectEndPoint = await GetEntity(wmiClassName, wmiNamespace, keyProperties);
+    const jsonObjectEndPoint = await GetEntity(wmiNamespace, wmiClassName, keyProperties);
 
     const cimInstanceProperties = jsonObjectEndPoint.CimInstanceProperties;
     for (const oneProperty of cimInstanceProperties) {
@@ -79,7 +79,7 @@ async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProper
     const objectNode = $rdf.namedNode(objectUri);
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
-    const jsonObjectEndPoint = await GetReferences(wmiClassName, wmiNamespace, keyProperties);
+    const jsonObjectEndPoint = await GetReferences(wmiNamespace, wmiClassName, keyProperties);
     if(!jsonObjectEndPoint == null)
     {
         return store; // No references found, return the store with just the object information.
@@ -128,7 +128,7 @@ async function wmiRdfReferences(windowOrigin, objectUri,wmiClassName, keyPropert
     const objectNode = $rdf.namedNode(objectUri);
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
-    const jsonObjectEndPoint = await GetReferences(wmiClassName, wmiNamespace, keyProperties);
+    const jsonObjectEndPoint = await GetReferences(wmiNamespace, wmiClassName, keyProperties);
     if(!jsonObjectEndPoint == null)
     {
         return store; // No references found, return the store with just the object information.

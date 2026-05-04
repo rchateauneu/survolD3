@@ -21,8 +21,7 @@ async function runTest() {
   console.log(`[TEST] Filter: Handle = ${currentPid}`);
 
   try {
-    const entityData = await GetEntity(wmiClassName, wmiNamespace, keyProperties);
-
+    const entityData = await GetEntity(wmiNamespace, wmiClassName, keyProperties);
     if (entityData) {
       console.log('[SUCCESS] Data retrieved for current process:');
       console.log(JSON.stringify(entityData, null, 2));

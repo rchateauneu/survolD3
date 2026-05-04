@@ -20,7 +20,7 @@ async function runTest() {
   console.log(`[TEST] Attempting to retrieve associators for: ${wmiClassName} (PID: ${currentPid})`);
 
   try {
-    const associators = await GetAssociators(wmiClassName, wmiNamespace, keyProperties);
+    const associators = await GetAssociators(wmiNamespace, wmiClassName, keyProperties);
 
     if (associators && associators.length > 0) {
       console.log(`[SUCCESS] Found ${associators.length} associated entities.`);

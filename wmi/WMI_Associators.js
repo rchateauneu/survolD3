@@ -1,16 +1,51 @@
 const { spawn } = require('child_process');
 
+let wmicpp;
+try {
+  // Try loading from build or the installed location in root
+  wmicpp = require('../wmicpp/build/Release/wmicpp.node');
+} catch (e) {
+  try {
+    wmicpp = require('../wmicpp.node');
+  } catch (err) {
+    wmicpp = null;
+  }
+}
+
+/**
+ * C++ Bridge function for GetAssociators
+ */
+function GetAssociatorsCPP(wmiNamespace, wmiClassName, keyProperties) { // This function receives (namespace, class, keys)
+  if (wmicpp && typeof wmicpp.GetAssociators === 'function') {
+    // For now, C++ implementation returns an empty array placeholder
+    const result = wmicpp.GetAssociators(wmiNamespace, wmiClassName, keyProperties);
+    if (result && Array.isArray(result) && result.length > 0) {
+      return result;
+    }
+  }
+  return null;
+}
+
 /**
  * Retrieves all associators for a specific WMI entity.
  * 
- * @param {string} wmiClassName - The name of the source WMI class (e.g., 'Win32_Process').
  * @param {string} wmiNamespace - The WMI namespace (e.g., 'root/cimv2').
+ * @param {string} wmiClassName - The name of the source WMI class (e.g., 'Win32_Process').
  * @param {Object} keyProperties - Object containing key property names and values to identify the source.
  * @returns {Promise<Array>} - A promise resolving to an array of associated WMI objects.
  */
-function GetAssociators(wmiClassName, wmiNamespace, keyProperties) {
-  console.log(`GetAssociators called with class: ${wmiClassName}, namespace: ${wmiNamespace}, keys: ${JSON.stringify(keyProperties)}`);
+function GetAssociators(wmiNamespace, wmiClassName, keyProperties) {
+  console.log(`GetAssociators called with namespace: ${wmiNamespace}, class: ${wmiClassName}, keys: ${JSON.stringify(keyProperties)}`);
   return new Promise((resolve, reject) => {
+    // Attempt C++ implementation first
+    const cppResult = GetAssociatorsCPP(wmiNamespace, wmiClassName, keyProperties);
+    if (cppResult) {
+      console.log('GetAssociators: Using C++ implementation');
+      return resolve(cppResult);
+    } else {
+      console.log('GetAssociators: Using PowerShell implementation');
+    }
+
     // Build the WMI object path part (e.g., Win32_Process.Handle="1234")
     const keyPart = Object.entries(keyProperties)
       .sort((a, b) => a[0].localeCompare(b[0])) // Ensure consistent key order
