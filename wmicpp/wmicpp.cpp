@@ -6,7 +6,7 @@
 
 #include <napi.h>
 #include "wmiclasses.h"
-#include "Win32_Process.h"
+//#include "Win32_Process.h"
 
 typedef std::map<std::string, std::string> KeyPropertiesMap;
 
