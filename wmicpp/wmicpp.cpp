@@ -8,11 +8,11 @@
 #include "wmiclasses.h"
 #include "Win32_Process.h"
 
-using namespace std;
+typedef std::map<std::string, std::string> KeyPropertiesMap;
 
 // Helper function to extract key-value pairs from a Napi::Object
-map<string, string> extractKeyProperties(const Napi::Object& jsObject) {
-    map<string, string> keyPropertiesMap;
+static KeyPropertiesMap extractKeyProperties(const Napi::Object& jsObject) {
+    KeyPropertiesMap keyPropertiesMap;
     Napi::Array propertyNames = jsObject.GetPropertyNames();
 
     for (uint32_t i = 0; i < propertyNames.Length(); i++) {
@@ -26,16 +26,16 @@ map<string, string> extractKeyProperties(const Napi::Object& jsObject) {
     return keyPropertiesMap;
 }
 
-auto Napi2Tuple(const Napi::CallbackInfo& info) {
-    tuple<string, string, map<string, string>> result;
+static auto Napi2Tuple(const Napi::CallbackInfo& info) {
+    std::tuple<std::string, std::string, KeyPropertiesMap> result;
     if (info.Length() < 3) {
         Napi::TypeError::New(info.Env(), "Wrong number of arguments. Expected 3: wmiNamespace, wmiClassName, keyProperties").ThrowAsJavaScriptException();
     }
 
-    string wmiNamespace = info[0].As<Napi::String>().Utf8Value();
-    string wmiClassName = info[1].As<Napi::String>().Utf8Value();
+    std::string wmiNamespace = info[0].As<Napi::String>().Utf8Value();
+    std::string wmiClassName = info[1].As<Napi::String>().Utf8Value();
     Napi::Object keyPropertiesJs = info[2].As<Napi::Object>();
-    map<string, string> keyProperties = extractKeyProperties(keyPropertiesJs);
+    KeyPropertiesMap keyProperties = extractKeyProperties(keyPropertiesJs);
 
     return std::make_tuple(wmiNamespace, wmiClassName, keyProperties);
 }
@@ -46,12 +46,12 @@ Napi::Value GetReferences(const Napi::CallbackInfo& info) {
 
     auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
 
-    cout << "C++ GetReferences called:" << endl;
-    cout << "  Namespace: " << wmiNamespace << endl;
-    cout << "  Class Name: " << wmiClassName << endl;
-    cout << "  Key Properties:" << endl;
+    std::cout << "C++ GetReferences called:" << std::endl;
+    std::cout << "  Namespace: " << wmiNamespace << std::endl;
+    std::cout << "  Class Name: " << wmiClassName << std::endl;
+    std::cout << "  Key Properties:" << std::endl;
     for (const auto& pair : keyProperties) {
-        cout << "    " << pair.first << ": " << pair.second << endl;
+        std::cout << "    " << pair.first << ": " << pair.second << std::endl;
     }
 
     // Return an empty Napi::Array as a placeholder
@@ -64,18 +64,18 @@ Napi::Value GetAssociators(const Napi::CallbackInfo& info) {
 
     auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
 
-    cout << "C++ GetAssociators called:" << endl;
-    cout << "  Namespace: " << wmiNamespace << endl;
-    cout << "  Class Name: " << wmiClassName << endl;
-    cout << "  Key Properties:" << endl;
+    std::cout << "C++ GetAssociators called:" << std::endl;
+    std::cout << "  Namespace: " << wmiNamespace << std::endl;
+    std::cout << "  Class Name: " << wmiClassName << std::endl;
+    std::cout << "  Key Properties:" << std::endl;
     for (const auto& pair : keyProperties) {
-        cout << "    " << pair.first << ": " << pair.second << endl;
+        std::cout << "    " << pair.first << ": " << pair.second << std::endl;
     }
 
     return Napi::Array::New(env);
 }
 
-void appendToNapiArray(const Napi::Env& env, Napi::Array& propertiesArray, const string & name, const variant<int, string> & value) {
+void appendToNapiArray(const Napi::Env& env, Napi::Array& propertiesArray, const std::string & name, const std::variant<int, std::string> & value) {
     uint32_t arrayIndex = propertiesArray.Length();
     Napi::Object obj = Napi::Object::New(env);
     obj.Set("Name", Napi::String::New(env, name));
@@ -85,11 +85,11 @@ void appendToNapiArray(const Napi::Env& env, Napi::Array& propertiesArray, const
         if constexpr (std::is_same_v<T, int>) {
             obj.Set("Value", Napi::Number::New(env, arg));
             obj.Set("CimType", Napi::Number::New(env, 8)); // Assuming 8 represents integer type in CIM
-        } else if constexpr (std::is_same_v<T, string>) {
+        } else if constexpr (std::is_same_v<T, std::string>) {
             obj.Set("Value", Napi::String::New(env, arg));
             obj.Set("CimType", Napi::Number::New(env, 14));
         }
-        cout << "  Added property: " << name << " = " << arg << endl;
+        std::cout << "  Added property: " << name << " = " << arg << std::endl;
     }, value);
 
     propertiesArray.Set(arrayIndex++, obj);
@@ -105,7 +105,7 @@ static auto dictToNapiArray(const Napi::Env& env, const WmiClass::EntityResult& 
 
 // Placeholder for GetEntity C++ function
 Napi::Value GetEntity(const Napi::CallbackInfo& info) {
-    cout << "C++ GetEntity called:" << endl;
+    std::cout << "C++ GetEntity called:" << std::endl;
     Napi::Env env = info.Env();
 
     auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
