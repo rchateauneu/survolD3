@@ -28,9 +28,9 @@ try {
     };
 
     const currentPid = process.pid;
-    call('GetReferences', 'root/cimv2', 'CIM_Process', { Handle: currentPid });
-    call('GetAssociators', 'root/cimv2', 'CIM_Process', { Handle: currentPid });
-    call('GetEntity', 'root/cimv2', 'CIM_Process', { Handle: currentPid });
+    call('GetReferences', 'root/cimv2', 'Win32_Process', { Handle: currentPid });
+    call('GetAssociators', 'root/cimv2', 'Win32_Process', { Handle: currentPid });
+    call('GetEntity', 'root/cimv2', 'Win32_Process', { Handle: currentPid });
 
     console.log('\nTesting finished.');
 

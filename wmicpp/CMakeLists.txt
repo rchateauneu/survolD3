@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.28)
 project(wmicpp)
 
 # Beware : 
@@ -29,5 +29,6 @@ target_link_libraries(wmicpp ${CMAKE_JS_LIB})
 
 # 6. (Optional but Recommended) Enable C++17 and Addon Exceptions
 # Node-addon-api v7+ generally requires C++17.
-set_target_properties(wmicpp PROPERTIES CXX_STANDARD 17)
+set_target_properties(wmicpp PROPERTIES CXX_STANDARD 23)
+set_target_properties(wmicpp PROPERTIES CXX_STANDARD_REQUIRED ON)
 target_compile_definitions(wmicpp PRIVATE NAPI_CPP_EXCEPTIONS)
