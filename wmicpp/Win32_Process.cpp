@@ -18,12 +18,22 @@ typedef NTSTATUS(NTAPI* pNtQueryInformationProcess)(
     PULONG ReturnLength
 );
 
+using std::string;
+using std::map;
+using std::variant;
+using std::cout;
+using std::endl;
+using std::cerr;
+using std::vector;
+using std::wstring;
+using std::to_string;
+
 class Win32_Process : public WmiClassTemplate<Win32_Process> {
 private:
     /**
      * Helper to retrieve the command line of another process by walking its PEB.
      */
-    static std::string GetCommandLineInternal(HANDLE hProcess) {
+    static string GetCommandLineInternal(HANDLE hProcess) {
         HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
         if (!hNtdll) return "";
 
@@ -48,7 +58,7 @@ private:
         // 3. Read the Actual Command Line buffer (Unicode)
         if (params.CommandLine.Length == 0) return "";
 
-        std::vector<wchar_t> buffer(params.CommandLine.Length / sizeof(wchar_t) + 1, 0);
+        vector<wchar_t> buffer(params.CommandLine.Length / sizeof(wchar_t) + 1, 0);
         if (!ReadProcessMemory(hProcess, params.CommandLine.Buffer, buffer.data(), params.CommandLine.Length, &bytesRead)) {
             return "";
         }
@@ -59,28 +69,62 @@ private:
     /**
      * Helper to convert Windows Wide strings to UTF-8 std::string
      */
-    static std::string WideToUtf8(const std::wstring& wstr) {
+    static string WideToUtf8(const wstring& wstr) {
         if (wstr.empty()) return "";
         int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
-        std::string strTo(size_needed, 0);
+        string strTo(size_needed, 0);
         WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
         return strTo;
     }
 
+    /**
+     * Helper to retrieve the owner (Domain\User) of a process using its access token.
+     */
+    static string GetOwnerInternal(HANDLE hProcess) {
+        HANDLE hToken = NULL;
+        if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) return "";
+
+        DWORD dwSize = 0;
+        GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize);
+        if (dwSize == 0) {
+            CloseHandle(hToken);
+            return "";
+        }
+
+        vector<unsigned char> buffer(dwSize);
+        if (!GetTokenInformation(hToken, TokenUser, buffer.data(), dwSize, &dwSize)) {
+            CloseHandle(hToken);
+            return "";
+        }
+
+        PTOKEN_USER pTokenUser = reinterpret_cast<PTOKEN_USER>(buffer.data());
+        wchar_t name[256], domain[256];
+        DWORD nameLen = 256, domainLen = 256;
+        SID_NAME_USE snu;
+
+        string owner = "";
+        if (LookupAccountSidW(NULL, pTokenUser->User.Sid, name, &nameLen, domain, &domainLen, &snu)) {
+            owner = WideToUtf8(wstring(domain) + L"\\" + wstring(name));
+        }
+
+        CloseHandle(hToken);
+        return owner;
+    }
+
 public:
-    WmiClass::EntityResult GetEntity(const std::string & wmiNamespace, const std::string & wmiClassname, const std::map<std::string, std::string> & keyProperties) const override {
+    WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
         WmiClass::EntityResult result;
         // Extract PID from keyProperties
-        std::string handleStr = keyProperties.at("Handle");
+        string handleStr = keyProperties.at("Handle");
         int pid = 0;
         try {
             pid = std::stoi(handleStr);
         } catch (const std::invalid_argument& e) {
-            std::cerr << "Invalid argument for PID conversion: " << e.what() << std::endl;
+            cerr << "Invalid argument for PID conversion: " << e.what() << std::endl;
             // In a real application, you might throw an exception or return an error object.
             return result;
         } catch (const std::out_of_range& e) {
-            std::cerr << "PID out of range: " << e.what() << std::endl;
+            cerr << "PID out of range: " << e.what() << std::endl;
             // In a real application, you might throw an exception or return an error object.
             return result;
         }
@@ -92,28 +136,32 @@ public:
         if (hProcess != NULL) {
             char pathBuffer[MAX_PATH];
             if (GetModuleFileNameExA(hProcess, NULL, pathBuffer, MAX_PATH) != 0) {
-                std::string executablePath = pathBuffer;
+                string executablePath = pathBuffer;
                 result["ExecutablePath"] = executablePath;
 
                 // Extract process name from path
                 size_t lastSlash = executablePath.find_last_of("\\/");
-                std::string processName = (lastSlash == std::string::npos) ? executablePath : executablePath.substr(lastSlash + 1);
+                string processName = (lastSlash == string::npos) ? executablePath : executablePath.substr(lastSlash + 1);
                 result["Name"] = processName;
 
                 // --- Get Real CommandLine ---
-                std::string cmdLine = GetCommandLineInternal(hProcess);
+                string cmdLine = GetCommandLineInternal(hProcess);
                 result["CommandLine"] = cmdLine.empty() ? executablePath : cmdLine;
+
+                // --- Get Real Owner ---
+                string owner = GetOwnerInternal(hProcess);
+                if (!owner.empty()) result["Owner"] = owner;
             } else {
                 // Failed to get module file name
-                std::cerr << "GetModuleFileNameExA failed for PID " << pid << ". Error: " << GetLastError() << std::endl;
-                result["ExecutablePath"] = "Unknown Path (Error: " + std::to_string(GetLastError()) + ")";
+                cerr << "GetModuleFileNameExA failed for PID " << pid << ". Error: " << GetLastError() << endl;
+                result["ExecutablePath"] = "Unknown Path (Error: " + to_string(GetLastError()) + ")";
                 result["Name"] = "Unknown Process";
             }
             CloseHandle(hProcess);
         } else {
             // Failed to open process
-            std::cerr << "OpenProcess failed for PID " << pid << ". Error: " << GetLastError() << std::endl;
-            result["ExecutablePath"] = "Process Not Found or Access Denied (Error: " + std::to_string(GetLastError()) + ")";
+            cerr << "OpenProcess failed for PID " << pid << ". Error: " << GetLastError() << endl;
+            result["ExecutablePath"] = "Process Not Found or Access Denied (Error: " + to_string(GetLastError()) + ")";
             result["Name"] = "Process Not Found";
         }
 
@@ -122,10 +170,10 @@ public:
             result["CommandLine"] = "Unknown Command Line";
         }
 
-        // --- Owner: More sophisticated placeholder ---
-        // Retrieving the process owner also involves several complex WinAPI calls.
-        // This would typically be a direct WMI property.
-        result["Owner"] = (pid == 4 || pid == 0) ? "NT AUTHORITY\\SYSTEM" : "CURRENT_USER"; // Simple heuristic for common system PIDs
+        // Final fallback if Owner was not retrieved (e.g. OpenProcess failed or GetOwnerInternal failed)
+        if (result.find("Owner") == result.end()) {
+            result["Owner"] = (pid == 4 || pid == 0) ? "NT AUTHORITY\\SYSTEM" : "Unknown / Access Denied";
+        }
 
         return result;
     }

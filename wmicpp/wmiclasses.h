@@ -5,15 +5,18 @@
 #include <unordered_map>
 #include <variant>
 #include <iostream>
+#include <strstream>
+
+typedef std::map<std::string, std::string> KeyPropertiesMap;
+
 
 class WmiClass {
 public:
     typedef std::map<std::string, std::variant<int, std::string>> EntityResult;
-    virtual EntityResult GetEntity(const std::string & wmiNamespace, const std::string & wmiClassname, const std::map<std::string, std::string> & keyProperties) const = 0;
+    virtual EntityResult GetEntity(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const = 0;
 
     virtual const char * GetClassName() const = 0;
 };
-
 
 class WmiClassRegister {
 public:
@@ -22,7 +25,7 @@ public:
         dictClasses()[wmiClass->GetClassName()] = wmiClass;
     }
 
-    WmiClass::EntityResult GetEntityCommon(const std::string & wmiNamespace, const std::string & wmiClassname, const std::map<std::string, std::string> & keyProperties) const {
+    WmiClass::EntityResult GetEntityCommon(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
         WmiClass::EntityResult result;
         auto it = dictClasses().find(wmiClassname);
         if (it != dictClasses().end()) {
