@@ -79,7 +79,7 @@ async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProper
     const objectNode = $rdf.namedNode(objectUri);
     store.add(objectNode, RDF('type'), LDT(wmiClassName));
 
-    const jsonObjectEndPoint = await GetReferences(wmiNamespace, wmiClassName, keyProperties);
+    const jsonObjectEndPoint = await GetAssociators(wmiNamespace, wmiClassName, keyProperties);
     if(!jsonObjectEndPoint == null)
     {
         return store; // No references found, return the store with just the object information.

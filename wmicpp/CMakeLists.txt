@@ -13,7 +13,7 @@ project(wmicpp)
 #                OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 # 2. Add the addon target (ensure it's a SHARED library)
-add_library(wmicpp SHARED wmicpp.cpp Win32_Process.cpp)
+add_library(wmicpp SHARED wmicpp.cpp root/cimv2/Win32_Process.cpp root/cimv2/CIM_DataFile.cpp)
 
 # 3. Configure the output to be a .node file without the 'lib' prefix (standard for Node addons)
 set_target_properties(wmicpp PROPERTIES PREFIX "" SUFFIX ".node")

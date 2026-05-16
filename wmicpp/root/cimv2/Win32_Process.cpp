@@ -1,8 +1,7 @@
-#pragma once
-
 #include <string>
+#include <stdexcept>
 
-#include "wmiclasses.h"
+#include "../../wmiclasses.h"
 #include <windows.h> // For WinAPI functions
 #include <psapi.h>   // For GetModuleFileNameEx
 #include <algorithm> // For std::find_last_of
@@ -27,6 +26,7 @@ using std::cerr;
 using std::vector;
 using std::wstring;
 using std::to_string;
+using std::runtime_error;
 
 class Win32_Process : public WmiClassTemplate<Win32_Process> {
 private:
@@ -111,23 +111,78 @@ private:
         return owner;
     }
 
-public:
-    WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
-        WmiClass::EntityResult result;
-        // Extract PID from keyProperties
-        string handleStr = keyProperties.at("Handle");
+    int getPid(const KeyPropertiesMap & keyProperties) const {
+        // string handleStr = keyProperties.at("Handle");
+        string handleStr = get_Handle(keyProperties);
         int pid = 0;
         try {
             pid = std::stoi(handleStr);
         } catch (const std::invalid_argument& e) {
             cerr << "Invalid argument for PID conversion: " << e.what() << std::endl;
-            // In a real application, you might throw an exception or return an error object.
-            return result;
+            throw; // Rethrow the exception to be handled by the caller
         } catch (const std::out_of_range& e) {
             cerr << "PID out of range: " << e.what() << std::endl;
-            // In a real application, you might throw an exception or return an error object.
-            return result;
+            throw; // Rethrow the exception to be handled by the caller
         }
+        return pid;
+    }
+
+    string GetExecutablePath(HANDLE hProcess) const {
+        if (hProcess != NULL) {
+            char pathBuffer[MAX_PATH];
+            if (GetModuleFileNameExA(hProcess, NULL, pathBuffer, MAX_PATH) != 0) {
+                return pathBuffer;
+            } else {
+                throw runtime_error("GetModuleFileNameExA failed for PID. Error: " + to_string(GetLastError()));
+            }
+        } else {
+            throw runtime_error("OpenProcess failed for PID. Error: " + to_string(GetLastError()));
+        }
+    }
+
+    vector<string> GetLibraries(HANDLE hProcess) const {
+        vector<string> libraries;
+        HMODULE hMods[1024];
+        DWORD cbNeeded;
+        if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded)) {
+            for (unsigned int i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
+                char szModName[MAX_PATH];
+                if (GetModuleFileNameExA(hProcess, hMods[i], szModName, sizeof(szModName) / sizeof(char))) {
+                    libraries.push_back(szModName);
+                }
+            }
+        } else {
+            cerr << "EnumProcessModules failed for PID. Error: " << GetLastError() << endl;
+        }
+        return libraries;
+    }
+
+    WmiClass::ReferencesResult GetProcessExecutableReferences(int pid) const {
+        WmiClass::ReferencesResult result;
+
+        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+        if (hProcess != NULL) { 
+            string executablePath = GetExecutablePath(hProcess);
+            std::cout << "Adding reference for executable: " << executablePath << std::endl;
+            result.push_back({"CIM_ProcessExecutable", executablePath, "CIM_DataFile.Name='" + executablePath + "'"});
+
+            auto libraries = GetLibraries(hProcess);
+            for (const auto& lib : libraries) {
+                std::cout << "Adding reference for library: " << lib << std::endl;
+                result.push_back({"CIM_ProcessExecutable", lib, "CIM_DataFile.Name='" + lib + "'"});
+            }
+            CloseHandle(hProcess);
+        } else {
+            throw runtime_error("OpenProcess failed for PID. Error: " + to_string(GetLastError()));
+        }
+
+        return result;
+    }
+
+public:
+    WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
+        WmiClass::EntityResult result;
+        int pid = getPid(keyProperties);
 
         result["Handle"] = pid;
         result["ProcessId"] = pid;
@@ -178,8 +233,31 @@ public:
         return result;
     }
 
-    static const char * GetClassNameStatic() {
-        return "Win32_Process";
+
+    WmiClass::ReferencesResult GetReferences(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
+        WmiClass::ReferencesResult result;
+        int pid = getPid(keyProperties);
+
+        auto resultCIM_ProcessExecutable = GetProcessExecutableReferences(pid);
+        result.insert(result.end(), resultCIM_ProcessExecutable.begin(), resultCIM_ProcessExecutable.end());
+/*
+  {
+    "AssocClass": "CIM_ProcessExecutable",
+    "Name": "C:\\WINDOWS\\system32\\uxtheme.dll",
+    "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\system32\\uxtheme.dll'"
+  },
+
+    struct ReferencesEntry {
+        std::string AssocClass;
+        std::string Name;
+        std::string Moniker;
+    };
+
+    typedef std::vector<ReferencesEntry> ReferencesResult;
+
+  */
+
+        return result;
     }
 };
 
