@@ -420,6 +420,7 @@
 
     function getShape(classStr) {
       if (classStr.includes('Win32_Process')) return 'chamfered';
+      if (classStr.includes('MSFT_NetTCPConnection')) return 'hexagon';
       if (classStr.includes('CIM_DiskPartition')) return 'circle';
       if (classStr.includes('LMI_Account')) return 'ellipse';
       if (classStr.includes('python')) return 'roundrect';
@@ -633,23 +634,23 @@
         // Add more specific colors as needed
       };
       let css = '';
-      const colors = ['blue', 'green', 'orange', 'purple', 'pink', 'gray'];
+      const colors = ['blue', 'green', 'orange', 'purple', 'pink', 'gray', 'red', 'brown'];
       let colorIndex = 0;
       linkClasses.forEach(cls => {
         if (specificColors[cls]) {
-          css += `.${cls} { stroke: ${specificColors[cls]}; stroke-width: 2; }\n`;
+          css += `.${cls} { stroke: ${specificColors[cls]}; stroke-width: 1; }\n`;
         } else if (cls === 'default') {
           css += '.default { stroke: black; stroke-width: 1; }\n';
         } else {
           const color = colors[colorIndex % colors.length];
-          css += `.${cls} { stroke: ${color}; stroke-width: 2; }\n`;
+          css += `.${cls} { stroke: ${color}; stroke-width: 1; }\n`;
           colorIndex++;
         }
       });
       d3.select("#dynamic-style").text(css);
 
       // Group nodes by shape
-      const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [], chamfered: [] };
+      const nodesByShape = { circle: [], ellipse: [], rect: [], roundrect: [], chamfered: [], hexagon: [] };
       graph.nodes.forEach(node => {
         console.log('updateGraph Processing node:', node.id, 'with class:', node.itemClass);
         const shape = getShape(node.itemClass);
@@ -657,7 +658,7 @@
       });
 
       // Create node shapes
-      let circles, ellipses, rects, roundrects, chamfereds;
+      let circles, ellipses, rects, roundrects, chamfereds, hexagons;
 
       // Create circles
       if (nodesByShape.circle.length > 0) {
@@ -728,6 +729,18 @@
         console.log('Created', chamfereds.size(), 'chamfereds');
       }
 
+      // Create hexagons
+      if (nodesByShape.hexagon.length > 0) {
+        const hexagonGroup = g.append("g").attr("class", "hexagons");
+        hexagons = hexagonGroup.selectAll("path")
+          .data(nodesByShape.hexagon)
+          .enter().append("path")
+          .attr("class", d => d.itemClass)
+          .each(function(d) { d.shape = this; });
+        attachNodeInteractivity(hexagons);
+        console.log('Created', hexagons.size(), 'hexagons');
+      }
+
       // Create links
       link = g.append("g")
         .attr("class", "links")
@@ -781,12 +794,18 @@
           } else if (tag === 'rect') {
             shape.attr('width', width)
               .attr('height', height);
-          }
-          else if (tag === 'path') { // For chamfered rect
-            const cornerCut = 5;
+          } else if (tag === 'path') {
             const w = d.width;
             const h = d.height;
-            const pathData = `M ${cornerCut},0 L ${w-cornerCut},0 L ${w},${cornerCut} L ${w},${h-cornerCut} L ${w-cornerCut},${h} L ${cornerCut},${h} L 0,${h-cornerCut} L 0,${cornerCut} Z`;
+            const shapeType = getShape(d.itemClass);
+            let pathData;
+            if (shapeType === 'chamfered') {
+              const cornerCut = 5;
+              pathData = `M ${cornerCut},0 L ${w-cornerCut},0 L ${w},${cornerCut} L ${w},${h-cornerCut} L ${w-cornerCut},${h} L ${cornerCut},${h} L 0,${h-cornerCut} L 0,${cornerCut} Z`;
+            } else if (shapeType === 'hexagon') {
+              const inset = w * 0.05;
+              pathData = `M 0,${h/2} L ${inset},0 L ${w-inset},0 L ${w},${h/2} L ${w-inset},${h} L ${inset},${h} Z`;
+            }
             shape.attr('d', pathData);
           }
         }
@@ -822,6 +841,8 @@
             .attr("x", d => d.x - (d.width ? d.width / 2 : 5))
             .attr("y", d => d.y - (d.height ? d.height / 2 : 5));
         if (chamfereds) chamfereds
+            .attr("transform", d => `translate(${d.x - (d.width ? d.width / 2 : 5)}, ${d.y - (d.height ? d.height / 2 : 5)})`);
+        if (hexagons) hexagons
             .attr("transform", d => `translate(${d.x - (d.width ? d.width / 2 : 5)}, ${d.y - (d.height ? d.height / 2 : 5)})`);
         if (labels) labels.attr("x", d => d.x).attr("y", d => d.y);
 

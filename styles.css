@@ -16,6 +16,12 @@ ellipse {
   stroke-width: 1;
 }
 
+path {
+  fill: gray;
+  stroke: black;
+  stroke-width: 1;
+}
+
 .labels text {
   pointer-events: none;
   font-size: 10px;
@@ -24,14 +30,6 @@ ellipse {
 
 .LMI_Account {
   fill: red;
-}
-
-.Win32_Process {
-  fill: blue;
-}
-
-text.Win32_Process {
-  fill: white;
 }
 
 .CIM_DataFile {
@@ -56,6 +54,40 @@ text.Win32_Process {
 
 .CIM_DiskPartition {
   fill: lightblue;
+}
+
+.Win32_Process {
+  fill: blue;
+}
+
+text.Win32_Process {
+  fill: white;
+}
+/*
+.MSFT_NetTCPConnection {
+  fill: green;
+}
+
+text.MSFT_NetTCPConnection {
+  fill: white;
+}
+
+TODO: Cannot set stroke and font-weight for MSFT_NetTCPConnection because it causes rendering issues in D3.js,
+likely due to the way D3 handles SVG elements and their styles.
+The stroke and font-weight properties may be conflicting with D3's default rendering behavior, leading to unexpected visual results.
+*/
+
+path.MSFT_NetTCPConnection {
+  fill: green;
+  stroke: black !important;
+  stroke-width: 1px !important;
+}
+
+text.MSFT_NetTCPConnection {
+  fill: white !important;
+  stroke: white !important;
+  /* font-width: 1px !important; */
+  font-weight: normal  !important;
 }
 
 #tooltip {
