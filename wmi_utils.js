@@ -123,7 +123,7 @@ async function wmiRdfAssociators(windowOrigin, objectUri, wmiClassName, keyPrope
     return store;
 }
 
-async function wmiRdfReferences(windowOrigin, objectUri,wmiClassName, keyProperties) {
+async function wmiRdfReferences(windowOrigin, objectUri, wmiClassName, keyProperties) {
     const store = $rdf.graph();
     console.log("wmiRdfReferences objectUri:", objectUri);
     console.log("wmiRdfReferences wmiClassName:", wmiClassName);
@@ -185,26 +185,23 @@ async function wmiRdfReferences(windowOrigin, objectUri,wmiClassName, keyPropert
  * @returns {string} - The string with escaped backslashes.
  */
 
-/*
-function escapeSingleBackslashes(str) {
-    if (typeof str !== 'string') return str;
-    // Match one or more backslashes. 
-    // If the sequence is exactly one backslash long, escape it.
-    // If it's already a sequence of backslashes, assume it's already escaped and leave it alone.
-    return str.replace(/\\+/g, (match) => (match === '\\' ? '\\\\' : match));
-}
-*/
-
-function wmiClassMenu(windowOrigin, xid)
+function wmiClassMenu(windowOrigin, moniker)
 {
     console.log("windowOrigin:", windowOrigin);
-    console.log("Generating menu for xid:", xid);
-    if( xid == undefined || xid == "") {
+    console.log("Generating menu for xid:", moniker);
+    if( moniker == undefined || moniker == "") {
         console.error("xid is undefined or empty. Returning null.");
         return null;
     }
-    const objectUri = createUriFromMoniker(windowOrigin, xid)
-    const [className, kvPairs] = splitMoniker(xid);
+
+    if (typeof moniker === 'string' && moniker.includes('%')) {
+        const errorMessage = `Error: xid "${moniker}" contains forbidden character "%"`;
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+    }
+
+    const objectUri = createUriFromMoniker(windowOrigin, moniker)
+    const [className, kvPairs] = splitMoniker(moniker);
 
     // WMI wants to have escaped backslashes, if they are not already escaped.
     // NON ! On le fait plus tard.

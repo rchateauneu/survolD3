@@ -15,6 +15,8 @@ using std::runtime_error;
 #include "../../wmiclasses.h"
 #include "../../wmiutils.h"
 
+namespace root::cimv2 {
+
 class CIM_Directory : public WmiClassTemplate<CIM_Directory> {
 public:
     WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
@@ -63,4 +65,6 @@ public:
     }
 };
 
-static CIM_Directory g_cimDataFile;
+static CIM_Directory g_cimDirectory;
+
+}

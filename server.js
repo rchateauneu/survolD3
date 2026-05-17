@@ -8,7 +8,7 @@ const os = require('os');
 const { exec } = require('child_process');
 const util = require('util');
 const { createUriFromClassKVpairs, LDT, RDF, RDFS, splitMoniker } = require('./utils');
-const { generateMenu } = require('./menus');
+const { generateMenu } = require('./server_menus');
 const { wmiClassMenu } = require('./wmi_utils');
 
 

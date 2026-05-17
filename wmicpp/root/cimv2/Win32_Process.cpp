@@ -2,10 +2,11 @@
 #include <stdexcept>
 
 #include "../../wmiclasses.h"
+#include <ws2tcpip.h> // For IN_ADDR, sockaddr_in, inet_ntop
 #include <windows.h> // For WinAPI functions
 #include <psapi.h>   // For GetModuleFileNameEx
 #include <algorithm> // For std::find_last_of
-#include <stdexcept> // For std::stoi exceptions
+#include <iphlpapi.h> // For GetExtendedTcpTable
 #include <winternl.h> // For PEB and NtQueryInformationProcess
 
 // Function pointer for the internal NT API
@@ -28,6 +29,11 @@ using std::wstring;
 using std::to_string;
 using std::runtime_error;
 
+#pragma comment(lib, "iphlpapi.lib") // Link with Iphlpapi.lib
+#pragma comment(lib, "Ws2_32.lib")   // Link with Ws2_32.lib for inet_ntop
+
+namespace root::cimv2 {
+    
 class Win32_Process : public WmiClassTemplate<Win32_Process> {
 private:
     /**
@@ -113,7 +119,7 @@ private:
 
     int getPid(const KeyPropertiesMap & keyProperties) const {
         // string handleStr = keyProperties.at("Handle");
-        string handleStr = get_Handle(keyProperties);
+        std::string handleStr = get_Handle(keyProperties);
         int pid = 0;
         try {
             pid = std::stoi(handleStr);
@@ -180,6 +186,98 @@ private:
         return result;
     }
 
+    WmiClass::AssociatorsResult GetNetTCPConnections(int pid) const {
+        WmiClass::AssociatorsResult result;
+        std::cout << "Getting NetTCPConnections for PID: " << pid << std::endl;
+
+        // IPv4 connections
+        DWORD dwSize = 0;
+        DWORD dwRetVal = GetExtendedTcpTable(NULL, &dwSize, TRUE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
+        if (dwRetVal == ERROR_INSUFFICIENT_BUFFER) {
+            PMIB_TCPTABLE_OWNER_PID pTcpTable = (PMIB_TCPTABLE_OWNER_PID) malloc(dwSize);
+            if (pTcpTable == NULL) {
+                cerr << "Error allocating memory for TCP table." << endl;
+                return result;
+            }
+
+            dwRetVal = GetExtendedTcpTable(pTcpTable, &dwSize, TRUE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
+            if (dwRetVal == NO_ERROR) {
+                for (DWORD i = 0; i < pTcpTable->dwNumEntries; i++) {
+                    if (pTcpTable->table[i].dwOwningPid == pid) {
+                        char localIpStr[INET_ADDRSTRLEN];
+                        char remoteIpStr[INET_ADDRSTRLEN];
+
+                        inet_ntop(AF_INET, &(pTcpTable->table[i].dwLocalAddr), localIpStr, INET_ADDRSTRLEN);
+                        inet_ntop(AF_INET, &(pTcpTable->table[i].dwRemoteAddr), remoteIpStr, INET_ADDRSTRLEN);
+
+                        std::string localAddress = localIpStr;
+                        std::string remoteAddress = remoteIpStr;
+                        unsigned short localPort = ntohs(pTcpTable->table[i].dwLocalPort);
+                        unsigned short remotePort = ntohs(pTcpTable->table[i].dwRemotePort);
+
+                        std::string instanceId = localAddress + "??" + std::to_string(localPort) + "??" +
+                                                 remoteAddress + "??" + std::to_string(remotePort);
+                        std::string name = localAddress + ":" + std::to_string(localPort) + " -> " +
+                                           remoteAddress + ":" + std::to_string(remotePort);
+
+                        result.push_back({"MSFT_NetTCPConnection", name, "MSFT_NetTCPConnection.InstanceID='" + instanceId + "'"});
+                        std::cout << "  Found IPv4 connection: " << name << " for PID " << pid << std::endl;
+                    }
+                }
+            } else {
+                cerr << "GetExtendedTcpTable (IPv4) failed with error: " << dwRetVal << endl;
+            }
+            free(pTcpTable);
+        } else {
+            cerr << "GetExtendedTcpTable (IPv4) initial call failed with error: " << dwRetVal << endl;
+        }
+
+        // IPv6 connections
+        dwSize = 0;
+        dwRetVal = GetExtendedTcpTable(NULL, &dwSize, TRUE, AF_INET6, TCP_TABLE_OWNER_PID_ALL, 0);
+        if (dwRetVal == ERROR_INSUFFICIENT_BUFFER) {
+            PMIB_TCP6TABLE_OWNER_PID pTcp6Table = (PMIB_TCP6TABLE_OWNER_PID) malloc(dwSize);
+            if (pTcp6Table == NULL) {
+                cerr << "Error allocating memory for TCP6 table." << endl;
+                return result;
+            }
+
+            dwRetVal = GetExtendedTcpTable(pTcp6Table, &dwSize, TRUE, AF_INET6, TCP_TABLE_OWNER_PID_ALL, 0);
+            if (dwRetVal == NO_ERROR) {
+                for (DWORD i = 0; i < pTcp6Table->dwNumEntries; i++) {
+                    if (pTcp6Table->table[i].dwOwningPid == pid) {
+                        char localIpStr[INET6_ADDRSTRLEN];
+                        char remoteIpStr[INET6_ADDRSTRLEN];
+
+                        inet_ntop(AF_INET6, &(pTcp6Table->table[i].ucLocalAddr), localIpStr, INET6_ADDRSTRLEN);
+                        inet_ntop(AF_INET6, &(pTcp6Table->table[i].ucRemoteAddr), remoteIpStr, INET6_ADDRSTRLEN);
+
+                        std::string localAddress = localIpStr;
+                        std::string remoteAddress = remoteIpStr;
+                        unsigned short localPort = ntohs(pTcp6Table->table[i].dwLocalPort);
+                        unsigned short remotePort = ntohs(pTcp6Table->table[i].dwRemotePort);
+
+                        std::string instanceId = localAddress + "??" + std::to_string(localPort) + "??" +
+                                                 remoteAddress + "??" + std::to_string(remotePort);
+                        std::string name = "[" + localAddress + "]:" + std::to_string(localPort) + " -> [" +
+                                           remoteAddress + "]:" + std::to_string(remotePort);
+
+                        result.push_back({"MSFT_NetTCPConnection", name, "MSFT_NetTCPConnection.InstanceID='" + instanceId + "'"});
+                        std::cout << "  Found IPv6 connection: " << name << " for PID " << pid << std::endl;
+                    }
+                }
+            } else {
+                cerr << "GetExtendedTcpTable (IPv6) failed with error: " << dwRetVal << endl;
+            }
+            free(pTcp6Table);
+        } else {
+            cerr << "GetExtendedTcpTable (IPv6) initial call failed with error: " << dwRetVal << endl;
+        }
+
+        return result;
+    }
+
+
 public:
     WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
         WmiClass::EntityResult result;
@@ -236,31 +334,24 @@ public:
 
 
     WmiClass::ReferencesResult GetReferences(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
-        WmiClass::ReferencesResult result;
         int pid = getPid(keyProperties);
         std::cout << "Getting references for PID: " << pid << std::endl;
 
         auto resultCIM_ProcessExecutable = GetProcessExecutableReferences(pid);
-        result.insert(result.end(), resultCIM_ProcessExecutable.begin(), resultCIM_ProcessExecutable.end());
-/*
-  {
-    "AssocClass": "CIM_ProcessExecutable",
-    "Name": "C:\\WINDOWS\\system32\\uxtheme.dll",
-    "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\system32\\uxtheme.dll'"
-  },
 
-    struct ReferencesEntry {
-        std::string AssocClass;
-        std::string Name;
-        std::string Moniker;
-    };
+        return WmiClass::ReferencesResult(resultCIM_ProcessExecutable.begin(), resultCIM_ProcessExecutable.end());
+    }
 
-    typedef std::vector<ReferencesEntry> ReferencesResult;
+    WmiClass::AssociatorsResult GetAssociators(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
+        int pid = getPid(keyProperties);
+        std::cout << "Getting associators for PID: " << pid << std::endl;
 
-  */
+        WmiClass::AssociatorsResult resultNetTCPConnections = GetNetTCPConnections(pid);
 
-        return result;
+        return WmiClass::AssociatorsResult(resultNetTCPConnections.begin(), resultNetTCPConnections.end());
     }
 };
 
 static Win32_Process g_win32Process;
+
+}

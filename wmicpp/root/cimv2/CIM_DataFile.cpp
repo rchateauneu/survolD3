@@ -16,6 +16,8 @@ using std::runtime_error;
 
 #pragma comment(lib, "rstrtmgr.lib")
 
+namespace root::cimv2 {
+
 class CIM_DataFile : public WmiClassTemplate<CIM_DataFile> {
 private:
     std::vector<int> getLsOf(const string & path) const {
@@ -62,12 +64,9 @@ private:
     }
 public:
     WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
-        WmiClass::EntityResult result;
         std::string pathName = get_Name(keyProperties);
-        result["Name"] = pathName;
-        result["Description"] = pathName;
-
-        return result;
+    
+        return WmiClass::EntityResult{{"Name", pathName}, {"Description", pathName}};
     }
 
     WmiClass::AssociatorsResult GetAssociators(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
@@ -99,3 +98,4 @@ public:
 };
 
 static CIM_DataFile g_cimDataFile;
+}

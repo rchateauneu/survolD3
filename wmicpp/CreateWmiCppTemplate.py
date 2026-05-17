@@ -14,11 +14,16 @@ def CreateWmiCppTemplate(file, wmi_namespace, wmi_class_name):
         c = wmi.WMI(namespace=wmi_namespace)
         wmi_class = getattr(c, wmi_class_name)
 
+        cpp_namespace = wmi_namespace.replace("\\", "::")
+
         file.write(
         f"""
+        namespace {cpp_namespace} {{
         class {wmi_class_name};
+        }}
+
         template<>
-        struct WmiClassDefinition<{wmi_class_name}> {{
+        struct WmiClassDefinition<{cpp_namespace}::{wmi_class_name}> {{
             // Properties of the WMI class '{wmi_class_name}' will be defined here.
 
             static const char * GetClassNameStatic() {{
@@ -63,6 +68,8 @@ if __name__ == "__main__":
     output_file = "wmidefinitions.h"
     with open(output_file, "w") as f:
         f.write("""
+        #pragma once
+
         template<class Derived>
         struct WmiClassDefinition {
         };
@@ -72,3 +79,4 @@ if __name__ == "__main__":
         CreateWmiCppTemplate(f, "root\\cimv2", "CIM_Directory")
         CreateWmiCppTemplate(f, "root\\cimv2", "Win32_Process")
         CreateWmiCppTemplate(f, "root\\cimv2", "Win32_LogicalDisk")
+        CreateWmiCppTemplate(f, "root\\StandardCimv2", "MSFT_NetTCPConnection")

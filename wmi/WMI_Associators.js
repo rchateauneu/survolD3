@@ -17,9 +17,9 @@ try {
  */
 function GetAssociatorsCPP(wmiNamespace, wmiClassName, keyProperties) { // This function receives (namespace, class, keys)
   if (wmicpp && typeof wmicpp.GetAssociators === 'function') {
-    // For now, C++ implementation returns an empty array placeholder
     const result = wmicpp.GetAssociators(wmiNamespace, wmiClassName, keyProperties);
-    if (result && Array.isArray(result) && result.length > 0) {
+    if (result && Array.isArray(result)) {
+      console.log('GetAssociators: Returning result from C++ implementation. Num elements: ' + result.length);
       return result;
     }
   }
