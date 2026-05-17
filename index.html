@@ -291,10 +291,11 @@
         // Construire le moniker et fabriquer l'URL du menu.
         const moniker = getMonikerFromUrl(d.id);
         const className = getClassFromUrl(d.id);
-        console.log("showContextMenu for node:", d, " moniker:", moniker);
+        console.log("showContextMenu for node:", d);
+        console.log("showContextMenu moniker:", moniker);
 
         const urlMenu = window.location.origin + "/menu?xid=" + encodeURIComponent(moniker);
-        console.log('urlMenu', urlMenu);
+        console.log('showContextMenu urlMenu', urlMenu);
         const menuStore = await loadMenu(urlMenu);
         if (menuStore) {
           const dynamicMenu = seeAlsoToMenu(menuStore, window.location.origin + "/objects");
@@ -395,7 +396,19 @@
       if (!xid) return 'default';
       const value = xid.substring(4); // remove 'xid='
       if (!value) return 'default';
-      return value;
+
+      if (value.includes(':')) {
+        const errorMessage = `getMonikerFromUrl Error: value "${value}" contains forbidden character ":"`;
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+      const moniker = decodeURIComponent(value);
+      if (moniker.includes('%')) {
+        const errorMessage = `getMonikerFromUrl Error: moniker "${moniker}" contains forbidden character "%"`;
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+      return moniker;
     }
 
     // The input is something like 'http://localhost:8765/objects?xid=Linux/cgroup.name=system.slice'

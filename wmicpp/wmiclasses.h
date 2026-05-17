@@ -6,6 +6,7 @@
 #include <variant>
 #include <iostream>
 #include <strstream>
+#include <optional>
 
 typedef std::map<std::string, std::string> KeyPropertiesMap;
 
@@ -59,31 +60,7 @@ public:
         dictClasses()[wmiClass->GetClassName()] = wmiClass;
     }
 
-    WmiClass::AssociatorsResult GetAssociatorsRegistered(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
-        WmiClass::AssociatorsResult result;
-        auto it = dictClasses().find(wmiClassname);
-        if (it != dictClasses().end()) {
-            std::cout << "Found WMI class for associators: " << wmiClassname << std::endl;
-            return it->second->GetAssociators(wmiNamespace, wmiClassname, keyProperties);
-        } else {
-            std::cout << "WMI class not found for associators: " << wmiClassname << std::endl;
-            return result;
-        }
-    }
-
-    WmiClass::ReferencesResult GetReferencesRegistered(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
-        WmiClass::ReferencesResult result;
-        auto it = dictClasses().find(wmiClassname);
-        if (it != dictClasses().end()) {
-            std::cout << "Found WMI class for references: " << wmiClassname << std::endl;
-            return it->second->GetReferences(wmiNamespace, wmiClassname, keyProperties);
-        } else {
-            std::cout << "WMI class not found for references: " << wmiClassname << std::endl;
-            return result;
-        }
-    }
-
-    WmiClass::EntityResult GetEntityRegistered(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
+    std::optional<WmiClass::EntityResult> GetEntityRegistered(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
         WmiClass::EntityResult result;
         auto it = dictClasses().find(wmiClassname);
         if (it != dictClasses().end()) {
@@ -91,7 +68,7 @@ public:
             result = it->second->GetEntity(wmiNamespace, wmiClassname, keyProperties);
         } else {
             std::cout << "WMI class not found: " << wmiClassname << std::endl;
-            return result;
+            return std::nullopt;
         }
 
         std::string captionValue = wmiNamespace + "," + wmiClassname;
@@ -103,6 +80,30 @@ public:
 
         return result;
     } 
+
+    std::optional<WmiClass::AssociatorsResult> GetAssociatorsRegistered(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
+        WmiClass::AssociatorsResult result;
+        auto it = dictClasses().find(wmiClassname);
+        if (it != dictClasses().end()) {
+            std::cout << "Found WMI class for associators: " << wmiClassname << std::endl;
+            return it->second->GetAssociators(wmiNamespace, wmiClassname, keyProperties);
+        } else {
+            std::cout << "WMI class not found for associators: " << wmiClassname << std::endl;
+            return std::nullopt;
+        }
+    }
+
+    std::optional<WmiClass::ReferencesResult> GetReferencesRegistered(const std::string & wmiNamespace, const std::string & wmiClassname, const KeyPropertiesMap & keyProperties) const {
+        WmiClass::ReferencesResult result;
+        auto it = dictClasses().find(wmiClassname);
+        if (it != dictClasses().end()) {
+            std::cout << "Found WMI class for references: " << wmiClassname << std::endl;
+            return it->second->GetReferences(wmiNamespace, wmiClassname, keyProperties);
+        } else {
+            std::cout << "WMI class not found for references: " << wmiClassname << std::endl;
+            return std::nullopt;
+        }
+    }
 
 private:
     std::unordered_map<std::string, const WmiClass *> & dictClasses() const {

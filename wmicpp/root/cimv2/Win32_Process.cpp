@@ -159,8 +159,9 @@ private:
 
     WmiClass::ReferencesResult GetProcessExecutableReferences(int pid) const {
         WmiClass::ReferencesResult result;
-
+        std::cout << "Getting executable and libraries for PID: " << pid << std::endl;
         HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+        std::cout << "Getting executable and libraries for PID: after OpenProcess " << pid << std::endl;
         if (hProcess != NULL) { 
             string executablePath = GetExecutablePath(hProcess);
             std::cout << "Adding reference for executable: " << executablePath << std::endl;
@@ -173,7 +174,7 @@ private:
             }
             CloseHandle(hProcess);
         } else {
-            throw runtime_error("OpenProcess failed for PID. Error: " + to_string(GetLastError()));
+            std::cout << "OpenProcess failed for PID: " << pid << ". Error: " << GetLastError() << std::endl;
         }
 
         return result;
@@ -237,6 +238,7 @@ public:
     WmiClass::ReferencesResult GetReferences(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
         WmiClass::ReferencesResult result;
         int pid = getPid(keyProperties);
+        std::cout << "Getting references for PID: " << pid << std::endl;
 
         auto resultCIM_ProcessExecutable = GetProcessExecutableReferences(pid);
         result.insert(result.end(), resultCIM_ProcessExecutable.begin(), resultCIM_ProcessExecutable.end());

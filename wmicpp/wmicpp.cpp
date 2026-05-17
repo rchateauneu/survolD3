@@ -38,87 +38,7 @@ static auto Napi2Tuple(const Napi::CallbackInfo& info) {
     return std::make_tuple(wmiNamespace, wmiClassName, keyProperties);
 }
 
-// Placeholder for GetReferences C++ function
-Napi::Value GetReferences(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-
-    auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
-
-    std::cout << "C++ GetReferences called:" << std::endl;
-    std::cout << "  Namespace: " << wmiNamespace << std::endl;
-    std::cout << "  Class Name: " << wmiClassName << std::endl;
-    std::cout << "  Key Properties:" << std::endl;
-    for (const auto& pair : keyProperties) {
-        std::cout << "    " << pair.first << ": " << pair.second << std::endl;
-    }
-
-    WmiClass::ReferencesResult resultDict = g_wmiClassRegister.GetReferencesRegistered(wmiNamespace, wmiClassName, keyProperties);
-
-    Napi::Array propertiesArray = Napi::Array::New(env);
-    for(const auto & assoc : resultDict) {
-        Napi::Object obj = Napi::Object::New(env);
-        obj.Set("AssocClass", Napi::String::New(env, assoc.AssocClass));
-        obj.Set("Name", Napi::String::New(env, assoc.Name));
-        obj.Set("Moniker", Napi::String::New(env, assoc.Moniker));
-        propertiesArray.Set(propertiesArray.Length(), obj);
-    }
-
-/*
-  {
-    "AssocClass": "CIM_ProcessExecutable",
-    "Name": "C:\\WINDOWS\\system32\\mswsock.dll",
-    "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\system32\\mswsock.dll'"
-  },
-*/
-
-    //Napi::Object result = Napi::Object::New(env);
-    //result.Set("CimInstanceProperties", propertiesArray);
-    //return result;
-    Napi::Value result = propertiesArray;
-    return result;
-}
-
-// Placeholder for GetAssociators C++ function
-Napi::Value GetAssociators(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-
-    auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
-
-    std::cout << "C++ GetAssociators called:" << std::endl;
-    std::cout << "  Namespace: " << wmiNamespace << std::endl;
-    std::cout << "  Class Name: " << wmiClassName << std::endl;
-    std::cout << "  Key Properties:" << std::endl;
-    for (const auto& pair : keyProperties) {
-        std::cout << "    " << pair.first << ": " << pair.second << std::endl;
-    }
-
-    WmiClass::AssociatorsResult resultDict = g_wmiClassRegister.GetAssociatorsRegistered(wmiNamespace, wmiClassName, keyProperties);
-
-    Napi::Array propertiesArray = Napi::Array::New(env);
-    for(const auto & assoc : resultDict) {
-        Napi::Object obj = Napi::Object::New(env);
-        obj.Set("AssocClass", Napi::String::New(env, assoc.AssocClass));
-        obj.Set("Name", Napi::String::New(env, assoc.Name));
-        obj.Set("Moniker", Napi::String::New(env, assoc.Moniker));
-        propertiesArray.Set(propertiesArray.Length(), obj);
-    }
-
-/*
-  {
-    "AssocClass": "CIM_ProcessExecutable",
-    "Name": "C:\\WINDOWS\\system32\\mswsock.dll",
-    "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\system32\\mswsock.dll'"
-  },
-*/
-
-    //Napi::Object result = Napi::Object::New(env);
-    //result.Set("CimInstanceProperties", propertiesArray);
-    //return result;
-    Napi::Value result = propertiesArray;
-    return result;
-}
-
-void appendToNapiArray(const Napi::Env& env, Napi::Array& propertiesArray, const std::string & name, const std::variant<int, std::string> & value) {
+static void appendToNapiArray(const Napi::Env& env, Napi::Array& propertiesArray, const std::string & name, const std::variant<int, std::string> & value) {
     uint32_t arrayIndex = propertiesArray.Length();
     Napi::Object obj = Napi::Object::New(env);
     obj.Set("Name", Napi::String::New(env, name));
@@ -153,14 +73,100 @@ Napi::Value GetEntity(const Napi::CallbackInfo& info) {
 
     auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
 
-    WmiClass::EntityResult resultDict = g_wmiClassRegister.GetEntityRegistered(wmiNamespace, wmiClassName, keyProperties);
+    std::optional<WmiClass::EntityResult> resultDict = g_wmiClassRegister.GetEntityRegistered(wmiNamespace, wmiClassName, keyProperties);
+    if(!resultDict.has_value()) {
+        std::cout << "No information found for the given class and key properties." << std::endl;
+        return env.Null();
+    }
 
-    Napi::Array propertiesArray = dictToNapiArray(env, resultDict);
+    Napi::Array propertiesArray = dictToNapiArray(env, resultDict.value());
 
     Napi::Object result = Napi::Object::New(env);
     result.Set("CimInstanceProperties", propertiesArray);
     return result;
 }
+
+// Placeholder for GetAssociators C++ function
+Napi::Value GetAssociators(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
+
+    std::cout << "C++ GetAssociators called:" << std::endl;
+    std::cout << "  Namespace: " << wmiNamespace << std::endl;
+    std::cout << "  Class Name: " << wmiClassName << std::endl;
+    std::cout << "  Key Properties:" << std::endl;
+    for (const auto& pair : keyProperties) {
+        std::cout << "    " << pair.first << ": " << pair.second << std::endl;
+    }
+
+    std::optional<WmiClass::AssociatorsResult> resultDict = g_wmiClassRegister.GetAssociatorsRegistered(wmiNamespace, wmiClassName, keyProperties);
+    if(!resultDict.has_value()) {
+        std::cout << "No associators found for the given class and key properties." << std::endl;
+        return env.Null();
+    }
+
+    Napi::Array propertiesArray = Napi::Array::New(env);
+    for(const auto & assoc : resultDict.value()) {
+        /*
+        {
+            "AssocClass": "CIM_ProcessExecutable",
+            "Name": "C:\\WINDOWS\\system32\\mswsock.dll",
+            "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\system32\\mswsock.dll'"
+        },
+        */
+        Napi::Object obj = Napi::Object::New(env);
+        obj.Set("AssocClass", Napi::String::New(env, assoc.AssocClass));
+        obj.Set("Name", Napi::String::New(env, assoc.Name));
+        obj.Set("Moniker", Napi::String::New(env, assoc.Moniker));
+        propertiesArray.Set(propertiesArray.Length(), obj);
+    }
+
+    Napi::Value result = propertiesArray;
+    return result;
+}
+
+// Placeholder for GetReferences C++ function
+Napi::Value GetReferences(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    auto [wmiNamespace, wmiClassName, keyProperties] = Napi2Tuple(info);
+
+    std::cout << "C++ GetReferences called:" << std::endl;
+    std::cout << "  Namespace: " << wmiNamespace << std::endl;
+    std::cout << "  Class Name: " << wmiClassName << std::endl;
+    std::cout << "  Key Properties:" << std::endl;
+    for (const auto& pair : keyProperties) {
+        std::cout << "    " << pair.first << ": " << pair.second << std::endl;
+    }
+
+    std::optional<WmiClass::ReferencesResult> resultDict = g_wmiClassRegister.GetReferencesRegistered(wmiNamespace, wmiClassName, keyProperties);
+    if(!resultDict.has_value()) {
+        std::cout << "No references found for the given class and key properties." << std::endl;
+        return env.Null();
+    }
+
+    Napi::Array propertiesArray = Napi::Array::New(env);
+    for(const auto & assoc : resultDict.value()) {
+        Napi::Object obj = Napi::Object::New(env);
+        obj.Set("AssocClass", Napi::String::New(env, assoc.AssocClass));
+        obj.Set("Name", Napi::String::New(env, assoc.Name));
+        obj.Set("Moniker", Napi::String::New(env, assoc.Moniker));
+        propertiesArray.Set(propertiesArray.Length(), obj);
+    }
+
+/*
+  {
+    "AssocClass": "CIM_ProcessExecutable",
+    "Name": "C:\\WINDOWS\\system32\\mswsock.dll",
+    "Moniker": "CIM_DataFile.Name='C:\\WINDOWS\\system32\\mswsock.dll'"
+  },
+*/
+
+    Napi::Value result = propertiesArray;
+    return result;
+}
+
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "GetReferences"), Napi::Function::New(env, GetReferences));

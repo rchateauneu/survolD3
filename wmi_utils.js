@@ -70,7 +70,7 @@ async function wmiRdfObjectInformation(windowOrigin, objectUri, wmiClassName, ke
     return store;
 }
 
-async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProperties) {
+async function wmiRdfAssociators(windowOrigin, objectUri, wmiClassName, keyProperties) {
     const store = $rdf.graph();
     console.log("wmiRdfAssociators objectUri:", objectUri);
     console.log("wmiRdfAssociators wmiClassName:", wmiClassName);
@@ -105,6 +105,10 @@ async function wmiRdfAssociators(windowOrigin, objectUri,wmiClassName, keyProper
         // ... must not contain unencoded spaces.
         const associatorUri = createUriFromClassKVpairs(windowOrigin, associatorClassName, associatorKeyValuePairs);
         const associatorNode = $rdf.namedNode(associatorUri);
+
+// Duplicate ??
+
+
         store.add(associatorNode, RDF('type'), LDT(associatorClassName));
         console.log(`Adding associator to RDF store: ${associatorUri} ` + objectAssociator);
         const associatorLabel = objectAssociator.Name || "No Name";
@@ -154,6 +158,9 @@ async function wmiRdfReferences(windowOrigin, objectUri,wmiClassName, keyPropert
         // ... must not contain unencoded spaces.
         const referenceUri = createUriFromClassKVpairs(windowOrigin, referenceClassName, referenceKeyValuePairs);
         const referenceNode = $rdf.namedNode(referenceUri);
+
+// Duplicate ??
+
         store.add(referenceNode, RDF('type'), LDT(referenceClassName));
         console.log(`Adding reference to RDF store: ${referenceUri} ` + objectReference);
         const referenceLabel = objectReference.Name || "No Name";
@@ -168,6 +175,26 @@ async function wmiRdfReferences(windowOrigin, objectUri,wmiClassName, keyPropert
     return store;
 }
 
+
+
+/**
+ * Escapes single backslashes in a string with another backslash,
+ * but only if they are not already escaped.
+ * 
+ * @param {string} str - The string to process.
+ * @returns {string} - The string with escaped backslashes.
+ */
+
+/*
+function escapeSingleBackslashes(str) {
+    if (typeof str !== 'string') return str;
+    // Match one or more backslashes. 
+    // If the sequence is exactly one backslash long, escape it.
+    // If it's already a sequence of backslashes, assume it's already escaped and leave it alone.
+    return str.replace(/\\+/g, (match) => (match === '\\' ? '\\\\' : match));
+}
+*/
+
 function wmiClassMenu(windowOrigin, xid)
 {
     console.log("windowOrigin:", windowOrigin);
@@ -179,10 +206,15 @@ function wmiClassMenu(windowOrigin, xid)
     const objectUri = createUriFromMoniker(windowOrigin, xid)
     const [className, kvPairs] = splitMoniker(xid);
 
-    // WMI wants to have escaped backslashes:
+    // WMI wants to have escaped backslashes, if they are not already escaped.
+    // NON ! On le fait plus tard.
+    /*
+    console.log("kvPairs BEFORE:", kvPairs);
     for (const [key, value] of Object.entries(kvPairs)) {
-        kvPairs[key] = value.replace(/\\/g, '\\\\');
+        kvPairs[key] = escapeSingleBackslashes(value);
     }
+    console.log("kvPairs AFTER:", kvPairs);
+*/
 
     const rdfWmiClassMenuEndPoints = new Map();
 

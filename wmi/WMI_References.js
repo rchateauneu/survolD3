@@ -19,7 +19,8 @@ function GetReferencesCPP(wmiNamespace, wmiClassName, keyProperties) { // This f
   if (wmicpp && typeof wmicpp.GetReferences === 'function') {
     // For now, C++ implementation returns an empty array placeholder
     const result = wmicpp.GetReferences(wmiNamespace, wmiClassName, keyProperties);
-    if (result && Array.isArray(result) && result.length > 0) {
+    if (result && Array.isArray(result)) {
+      console.log('GetReferences: Returning result from C++ implementation. Num elements: ' + result.length);
       return result;
     }
   }
@@ -40,7 +41,7 @@ function GetReferences(wmiNamespace, wmiClassName, keyProperties) {
     // Attempt C++ implementation first
     const cppResult = GetReferencesCPP(wmiNamespace, wmiClassName, keyProperties);
     if (cppResult) {
-      console.log('GetReferences: Using C++ implementation');
+      console.log('GetReferences: Called GetReferencesCPP and got a result');
       return resolve(cppResult);
     } else {
       console.log('GetReferences: Using PowerShell implementation');

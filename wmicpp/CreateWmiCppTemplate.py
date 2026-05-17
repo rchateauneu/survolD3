@@ -39,7 +39,6 @@ def CreateWmiCppTemplate(file, wmi_namespace, wmi_class_name):
                 file.write(
             f"""
             std::string get_{prop.Name}(const KeyPropertiesMap & keyProperties) const {{
-                // Implementation to retrieve the value of '{prop.Name}' from WMI instance
                 return keyProperties.at("{prop.Name}");
             }}
             """)
@@ -69,5 +68,7 @@ if __name__ == "__main__":
         };
 
         """)
-        CreateWmiCppTemplate(f, "root\\cimv2", "Win32_Process")
         CreateWmiCppTemplate(f, "root\\cimv2", "CIM_DataFile")
+        CreateWmiCppTemplate(f, "root\\cimv2", "CIM_Directory")
+        CreateWmiCppTemplate(f, "root\\cimv2", "Win32_Process")
+        CreateWmiCppTemplate(f, "root\\cimv2", "Win32_LogicalDisk")

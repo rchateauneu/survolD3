@@ -5,6 +5,8 @@ const si = require('systeminformation');
 const fs = require('fs');
 const open = require('open');
 const os = require('os');
+const { exec } = require('child_process');
+const util = require('util');
 const { createUriFromClassKVpairs, LDT, RDF, RDFS, splitMoniker } = require('./utils');
 const { generateMenu } = require('./menus');
 const { wmiClassMenu } = require('./wmi_utils');
@@ -107,6 +109,21 @@ async function fillProcessesList(windowOrigin) {
   return store;
 }
 
+const execPromise = util.promisify(exec);
+
+async function getLogicalDisks() {
+  try {
+    // Spawning wmic directly is faster than using si.blockDevices() because it avoids extensive hardware discovery.
+    const { stdout } = await execPromise('wmic logicaldisk get deviceid');
+    return stdout.replace(/\0/g, '').split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line && line !== 'DeviceID');
+  } catch (error) {
+    console.error("Error getting logical disks via wmic:", error);
+    return [];
+  }
+}
+
 // This is used for testing purposes, to check that the server can receive events from WMI and update the RDF store accordingly.
 async function entityWin32_ComputerSystem(windowOrigin) {
   // TODO: Add more information.
@@ -125,20 +142,20 @@ async function entityWin32_ComputerSystem(windowOrigin) {
 
   // Loop on all logical disks (C:, D:, etc.) using si.fsSize()
   try {
-    console.log("Getting logical disks from fsSize...");
-    const fileSystems = await si.fsSize();
-    fileSystems.forEach(fs => {
-      console.log(`Logical Disk Name: ${fs}`);
-      const uriLogicalDisk = createUriFromClassKVpairs(windowOrigin, 'Win32_LogicalDisk', { DeviceID: fs.mount });
+    console.log("Getting logical disks...");
+    const disks = await getLogicalDisks();
+    disks.forEach(mount => {
+      console.log(`Logical Disk Name: ${mount}`);
+      const uriLogicalDisk = createUriFromClassKVpairs(windowOrigin, 'Win32_LogicalDisk', { DeviceID: mount });
       const nodeLogicalDisk = $rdf.namedNode(uriLogicalDisk);
-      store.add(nodeLogicalDisk, RDFS('label'), $rdf.literal(fs.mount));
-      store.add(nodeLogicalDisk, LDT('Name'), $rdf.literal(fs.mount));
+      store.add(nodeLogicalDisk, RDFS('label'), $rdf.literal(mount));
+      store.add(nodeLogicalDisk, LDT('Name'), $rdf.literal(mount));
       store.add(nodeLogicalDisk, RDF('type'), LDT('Win32_LogicalDisk'));
       store.add(nodeHostname, LDT('hasDisk'), nodeLogicalDisk);
-      console.log(`Logical Disk Name: ${fs.mount} finished`);
+      console.log(`Logical Disk Name: ${mount} finished`);
     });
   } catch (error) {
-    console.error("Error getting logical disks from fsSize:", error);
+    console.error("Error getting logical disks:", error);
   }
 
   return store;
@@ -193,24 +210,57 @@ rdfGlobalEndpoints = new Map(
     ],
   ]);
 
-function objectToEndPointMenu(windowOrigin, xid) {
-  console.log(`objectToEndPointMenu called with windowOrigin: ${windowOrigin} and xid: ${xid}`);
-  if(xid == undefined || xid == "") {
+  function queryXidToMoniker(req_query_xid) {
+    console.log(`req_query_xid: ${req_query_xid}`);
+    if(req_query_xid == undefined || req_query_xid == "") {
+      return null;
+    }
+
+    if (req_query_xid.includes('%')) {
+      const errorMessage = `queryXidToMoniker Error: req_query_xid "${req_query_xid}" contains forbidden character ":"`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+    return req_query_xid;
+
+/*
+    // We might as well decode the whole string in one go.
+    const moniker = decodeURIComponent(req_query_xid);
+    if (moniker.includes('%')) {
+      const errorMessage = `queryXidToMoniker Error: moniker "${moniker}" contains forbidden character ":"`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+    console.log(`queryXidToMoniker moniker: ${moniker}`);
+    return moniker;
+*/
+  }
+
+  /*
+  The moniker is not encoded.
+  */
+function objectToEndPointMenu(windowOrigin, moniker) {
+  console.log(`objectToEndPointMenu called with windowOrigin: ${windowOrigin} and xid: ${moniker}`);
+  if(moniker == undefined || moniker == "") {
     return rdfGlobalEndpoints;
   } else {
-    classEndPoints = wmiClassMenu(windowOrigin, xid);    
+    if (moniker.includes('%')) {
+      const errorMessage = `objectToEndPointMenu Error: xid "${moniker}" contains forbidden character "%"`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    classEndPoints = wmiClassMenu(windowOrigin, moniker);    
     return classEndPoints;
   }
 }
 
 app.get('/menu', (req, res, next) => {
   const windowOrigin = refToWindowOrigin(req);
-  console.log('req.query: ', req.query);
-  const xid = req.query.xid;
-  console.log(`xid: ${xid}`);
-  const classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
-  if (!classEndPoints) return res.status(404).send(`Class not found for xid: ${xid}`);
-  const [className, kvPairs] = splitMoniker(xid);
+  const moniker = queryXidToMoniker(req.query.xid);
+  const classEndPoints = objectToEndPointMenu(windowOrigin, moniker);    
+  if (!classEndPoints) return res.status(404).send(`Class not found for moniker: ${moniker}`);
+  const [className, kvPairs] = splitMoniker(moniker);
   const rdfStore = generateMenu(className, classEndPoints, windowOrigin);
   serializeRdfStore(res, rdfStore, windowOrigin);
 });
@@ -219,16 +269,16 @@ app.get('/objects/:endPoint', async (req, res, next) => {
   const endPoint = req.params.endPoint;
   console.log(`Received request for endpoint: ${endPoint}`);
   const windowOrigin = refToWindowOrigin(req);
-  const xid = req.query.xid;
-  const classEndPoints = objectToEndPointMenu(windowOrigin, xid);    
-  if (!classEndPoints) return res.status(404).send(`Class not found for xid: ${xid}`);
+  const moniker = queryXidToMoniker(req.query.xid);
+  const classEndPoints = objectToEndPointMenu(windowOrigin, moniker);    
+  if (!classEndPoints) return res.status(404).send(`Class not found for moniker: ${moniker}`);
 
   const endPointObject = classEndPoints.get(req.params.endPoint);
   if (!endPointObject) return res.status(404).send(`End point not found: ${req.params.endPoint}`);
 
   const generator = endPointObject.endPointMethod;
   if (!generator) return next();
-  console.log(`xid: ${xid}`);
+  console.log(`moniker: ${moniker}`);
   const rdfStore = await generator(windowOrigin);
   serializeRdfStore(res, rdfStore, windowOrigin);
 });
