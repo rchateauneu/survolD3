@@ -1,4 +1,5 @@
 #include "wmiutils.h"
+#include <windows.h>
 
 std::wstring Utf8ToWide(const std::string& str) {
     if (str.empty()) return L"";
@@ -37,4 +38,11 @@ std::vector<std::string> getFilesOf(const std::string & path) {
         FindClose(hFind);
     }
     return files;
+}
+
+std::string Hostname() {
+    char buffer[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD size = sizeof(buffer);
+    GetComputerNameA(buffer, &size);
+    return buffer;
 }

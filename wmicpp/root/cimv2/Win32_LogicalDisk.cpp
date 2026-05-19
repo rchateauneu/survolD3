@@ -15,13 +15,6 @@ using std::runtime_error;
 #include "../../wmiclasses.h"
 #include "../../wmiutils.h"
 
-static std::string Hostname() {
-    char buffer[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD size = sizeof(buffer);
-    GetComputerNameA(buffer, &size);
-    return buffer;
-}
-
 namespace root::cimv2 {
 
 class Win32_LogicalDisk : public WmiClassTemplate<Win32_LogicalDisk> {
@@ -30,24 +23,16 @@ public:
     WmiClass::EntityResult GetEntity(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
         WmiClass::EntityResult result;
         std::string deviceId = get_DeviceID(keyProperties);
-        //result["Name"] = deviceId;
-        //result["Description"] = deviceId;
 
         return WmiClass::EntityResult{{"Name", deviceId}, {"Description", deviceId}};
-
-        //return result;
     }
 
     WmiClass::AssociatorsResult GetAssociators(const string & wmiNamespace, const string & wmiClassname, const KeyPropertiesMap & keyProperties) const override {
-        //WmiClass::AssociatorsResult result;
         std::string deviceId = get_DeviceID(keyProperties);
 
         std::string computerName = Hostname();
 
         std::cout << "Adding associator for computer: " << computerName << std::endl;
-       // result.push_back({"Win32_SystemDevices", computerName, "Win32_ComputerSystem.Name='" + computerName + "'"});
-
-        //return result;
         return WmiClass::AssociatorsResult{{"Win32_SystemDevices", computerName, "Win32_ComputerSystem.Name='" + computerName + "'"}};
     }
 

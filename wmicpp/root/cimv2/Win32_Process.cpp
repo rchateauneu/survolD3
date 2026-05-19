@@ -2,6 +2,7 @@
 #include <stdexcept>
 
 #include "../../wmiclasses.h"
+#include "../../wmiutils.h"
 #include <ws2tcpip.h> // For IN_ADDR, sockaddr_in, inet_ntop
 #include <windows.h> // For WinAPI functions
 #include <psapi.h>   // For GetModuleFileNameEx
@@ -73,17 +74,6 @@ private:
     }
 
     /**
-     * Helper to convert Windows Wide strings to UTF-8 std::string
-     */
-    static string WideToUtf8(const wstring& wstr) {
-        if (wstr.empty()) return "";
-        int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
-        string strTo(size_needed, 0);
-        WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
-        return strTo;
-    }
-
-    /**
      * Helper to retrieve the owner (Domain\User) of a process using its access token.
      */
     static string GetOwnerInternal(HANDLE hProcess) {
@@ -118,7 +108,6 @@ private:
     }
 
     int getPid(const KeyPropertiesMap & keyProperties) const {
-        // string handleStr = keyProperties.at("Handle");
         std::string handleStr = get_Handle(keyProperties);
         int pid = 0;
         try {
